@@ -28,7 +28,7 @@ const OTHER =
   "3333333333333333333333333333333333333333";
 
 const TARGET =
-  "04 - AI WORKSPACE/SPARK/STATE-UPDATES/TASK-AS-0003.md";
+  "04 - AI WORKSPACE/AI-SHOWROOM/SPARK/STATE-UPDATES/TASK-AS-0003.md";
 
 const currentContent = `# State History
 
@@ -83,7 +83,7 @@ function validChange(
         "ai-showroom",
       task: "TASK-AS-0003",
       allowedTargetPrefixes: [
-        "04 - AI WORKSPACE/SPARK/",
+        "04 - AI WORKSPACE/AI-SHOWROOM/SPARK/",
       ],
     },
 
