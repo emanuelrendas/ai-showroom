@@ -1,9 +1,6 @@
 export const AI_SHOWROOM_CREDENTIAL_PREFIX =
   "AI_SHOWROOM_" as const;
 
-export const FORBIDDEN_RAIOC_CREDENTIAL_PREFIX =
-  "RAIOC_" as const;
-
 export type PathComparisonMode =
   | "case-sensitive"
   | "case-insensitive";
@@ -19,9 +16,6 @@ export type IsolationRequest = {
 
   repoPath: string;
   approvedVaultRoot: string;
-
-  forbiddenRaiocRoots:
-    readonly string[];
 
   approvedRemote: string;
 
@@ -43,9 +37,6 @@ export type IsolationSnapshot = {
   repoRoot: string;
   vaultRoot: string;
 
-  raiocRoots:
-    readonly string[];
-
   targetAnchors:
     readonly TargetPhysicalAnchor[];
 
@@ -61,16 +52,13 @@ export type IsolationDenyCode =
 
   | "VAULT_REALPATH_FAILED"
   | "REPO_REALPATH_FAILED"
-  | "RAIOC_REALPATH_FAILED"
   | "VAULT_ROOT_MISMATCH"
-  | "PROJECT_ROOT_OVERLAP"
   | "TARGET_PATH_ESCAPE"
 
   | "REMOTE_NOT_CONFIGURED"
   | "REMOTE_FORMAT_UNSUPPORTED"
   | "REMOTE_IDENTITY_MISMATCH"
 
-  | "FORBIDDEN_CREDENTIAL_NAMESPACE"
   | "REQUIRED_SHOWROOM_CREDENTIAL_MISSING"
 
   | "ISOLATION_INSPECTION_FAILED";
@@ -91,6 +79,7 @@ export type IsolationDecision =
       code: IsolationDenyCode;
 
       path?: string;
+
       environmentKey?: string;
     };
 
@@ -99,17 +88,20 @@ export type IsolationGuardDecision<T> =
       ok: true;
       code:
         "ISOLATION_VERIFIED_AND_EXECUTED";
+
       isolation:
         Extract<
           IsolationDecision,
           { ok: true }
         >;
+
       result: T;
     }
   | {
       ok: false;
       code:
         "ISOLATION_REJECTED";
+
       isolation:
         Extract<
           IsolationDecision,

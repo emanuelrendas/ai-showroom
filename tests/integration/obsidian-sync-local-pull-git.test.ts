@@ -286,8 +286,7 @@ function request(
       approvedVaultRoot:
         vault,
 
-      forbiddenRaiocRoots:
-        [] as readonly string[],
+      
 
       approvedRemote:
         "https://github.com/offline-test/ai-showroom-vault.git",

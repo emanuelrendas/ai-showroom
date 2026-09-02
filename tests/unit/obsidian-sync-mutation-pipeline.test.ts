@@ -320,9 +320,7 @@ describe(
                 approvedVaultRoot:
                   "/fake/ai-showroom-vault",
 
-                forbiddenRaiocRoots: [
-                  "/fake/raioc",
-                ],
+                
 
                 approvedRemote:
                   "https://github.com/tiago/ai-showroom-vault.git",
@@ -481,8 +479,7 @@ describe(
                 approvedVaultRoot:
                   "/fake/ai-showroom-vault",
 
-                forbiddenRaiocRoots:
-                  [],
+                
 
                 approvedRemote:
                   "https://github.com/tiago/ai-showroom-vault.git",
@@ -607,10 +604,7 @@ describe(
                 approvedVaultRoot:
                   "/fake/ai-showroom-vault",
 
-                forbiddenRaiocRoots:
-                  [
-                    "/fake/raioc",
-                  ],
+                
 
                 approvedRemote:
                   "https://github.com/tiago/ai-showroom-vault.git",

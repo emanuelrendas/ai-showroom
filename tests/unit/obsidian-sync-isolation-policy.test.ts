@@ -5,10 +5,10 @@ import {
 } from "vitest";
 
 import {
+  canonicalizePhysicalPath,
   evaluateIsolation,
   isSameOrDescendant,
   parseGitRemoteIdentity,
-  rootsOverlap,
 } from "@/tools/obsidian-sync/isolation-policy";
 
 import type {
@@ -16,17 +16,14 @@ import type {
   IsolationSnapshot,
 } from "@/tools/obsidian-sync/isolation-types";
 
-const SHOWROOM =
-  "C:\\Projects\\AI-Showroom-Vault";
-
-const RAIOC =
-  "C:\\Projects\\RAIOC-V2";
+const SHARED_VAULT =
+  "C:\\Users\\diore\\Documents\\RAIOC V2";
 
 const TARGET =
-  "03 - TASKS/ACTIVE/TASK-AS-0003.md";
+  "04 - AI WORKSPACE/SPARK/STATE-UPDATES/TASK-AS-0003.md";
 
 const APPROVED_REMOTE =
-  "https://github.com/tiago/ai-showroom-vault.git";
+  "https://github.com/emanuelrendas/raioc-obsidian-vault2.git";
 
 function request(
   overrides:
@@ -37,14 +34,10 @@ function request(
       "ai-showroom",
 
     repoPath:
-      SHOWROOM,
+      SHARED_VAULT,
 
     approvedVaultRoot:
-      SHOWROOM,
-
-    forbiddenRaiocRoots: [
-      RAIOC,
-    ],
+      SHARED_VAULT,
 
     approvedRemote:
       APPROVED_REMOTE,
@@ -69,20 +62,18 @@ function snapshot(
       "case-insensitive",
 
     repoRoot:
-      SHOWROOM,
+      SHARED_VAULT,
 
     vaultRoot:
-      SHOWROOM,
-
-    raiocRoots: [
-      RAIOC,
-    ],
+      SHARED_VAULT,
 
     targetAnchors: [
       {
-        target: TARGET,
+        target:
+          TARGET,
+
         resolvedAnchor:
-          `${SHOWROOM}\\03 - TASKS\\ACTIVE`,
+          `${SHARED_VAULT}\\04 - AI WORKSPACE\\SPARK\\STATE-UPDATES`,
       },
     ],
 
@@ -91,6 +82,8 @@ function snapshot(
 
     environmentKeys: [
       "PATH",
+      "RAIOC_GITHUB_TOKEN",
+      "RAIOC_SUPABASE_KEY",
       "AI_SHOWROOM_VAULT_PATH",
     ],
 
@@ -105,12 +98,16 @@ describe(
       "treats Windows case variants as the same physical root",
       () => {
         expect(
-          rootsOverlap(
-            "C:\\Projects\\Vault",
-            "c:\\projects\\vault",
+          canonicalizePhysicalPath(
+            "C:\\Users\\DIORE\\Documents\\RAIOC V2",
             "case-insensitive",
           ),
-        ).toBe(true);
+        ).toBe(
+          canonicalizePhysicalPath(
+            "c:\\users\\diore\\documents\\raioc v2",
+            "case-insensitive",
+          ),
+        );
       },
     );
 
@@ -118,7 +115,7 @@ describe(
       "does not confuse similar path prefixes with ancestry",
       () => {
         expect(
-          rootsOverlap(
+          isSameOrDescendant(
             "C:\\Projects\\vault",
             "C:\\Projects\\vault-old",
             "case-insensitive",
@@ -132,8 +129,8 @@ describe(
       () => {
         expect(
           isSameOrDescendant(
-            SHOWROOM,
-            `${SHOWROOM}\\folder\\file.md`,
+            SHARED_VAULT,
+            `${SHARED_VAULT}\\folder\\file.md`,
             "case-insensitive",
           ),
         ).toBe(true);
@@ -141,7 +138,7 @@ describe(
     );
 
     it(
-      "allows physically separate sibling project roots",
+      "accepts the real shared RAIOC V2 vault identity",
       () => {
         expect(
           evaluateIsolation(
@@ -152,66 +149,17 @@ describe(
           ok: true,
           code:
             "ISOLATION_VERIFIED",
-        });
-      },
-    );
 
-    it(
-      "rejects identical Showroom and RAIOC roots",
-      () => {
-        expect(
-          evaluateIsolation(
-            request(),
-            snapshot({
-              raiocRoots: [
-                SHOWROOM,
-              ],
-            }),
-          ),
-        ).toMatchObject({
-          ok: false,
-          code:
-            "PROJECT_ROOT_OVERLAP",
-        });
-      },
-    );
+          remote: {
+            host:
+              "github.com",
 
-    it(
-      "rejects RAIOC nested inside Showroom",
-      () => {
-        expect(
-          evaluateIsolation(
-            request(),
-            snapshot({
-              raiocRoots: [
-                `${SHOWROOM}\\RAIOC`,
-              ],
-            }),
-          ),
-        ).toMatchObject({
-          ok: false,
-          code:
-            "PROJECT_ROOT_OVERLAP",
-        });
-      },
-    );
+            owner:
+              "emanuelrendas",
 
-    it(
-      "rejects Showroom nested inside RAIOC",
-      () => {
-        expect(
-          evaluateIsolation(
-            request(),
-            snapshot({
-              raiocRoots: [
-                "C:\\Projects",
-              ],
-            }),
-          ),
-        ).toMatchObject({
-          ok: false,
-          code:
-            "PROJECT_ROOT_OVERLAP",
+            repo:
+              "raioc-obsidian-vault2",
+          },
         });
       },
     );
@@ -224,7 +172,7 @@ describe(
             request(),
             snapshot({
               repoRoot:
-                `${SHOWROOM}\\nested`,
+                `${SHARED_VAULT}\\nested`,
             }),
           ),
         ).toMatchObject({
@@ -236,7 +184,7 @@ describe(
     );
 
     it(
-      "rejects a target whose physical anchor escapes the Showroom vault",
+      "rejects a physical target anchor outside the shared vault",
       () => {
         expect(
           evaluateIsolation(
@@ -246,13 +194,14 @@ describe(
                 {
                   target:
                     TARGET,
+
                   resolvedAnchor:
-                    `${RAIOC}\\secret`,
+                    "C:\\Users\\diore\\Some Other Folder",
                 },
               ],
             }),
           ),
-        ).toMatchObject({
+        ).toEqual({
           ok: false,
           code:
             "TARGET_PATH_ESCAPE",
@@ -269,13 +218,13 @@ describe(
   () => {
     it.each([
       [
-        "https://github.com/Tiago/AI-Showroom-Vault.git",
+        "https://github.com/emanuelrendas/raioc-obsidian-vault2.git",
       ],
       [
-        "git@github.com:Tiago/AI-Showroom-Vault.git",
+        "git@github.com:emanuelrendas/raioc-obsidian-vault2.git",
       ],
       [
-        "ssh://git@github.com/Tiago/AI-Showroom-Vault.git",
+        "ssh://git@github.com/emanuelrendas/raioc-obsidian-vault2.git",
       ],
     ])(
       "parses supported remote %s",
@@ -288,18 +237,18 @@ describe(
           host:
             "github.com",
           owner:
-            "tiago",
+            "emanuelrendas",
           repo:
-            "ai-showroom-vault",
+            "raioc-obsidian-vault2",
         });
       },
     );
 
     it.each([
-      "ftp://github.com/tiago/vault.git",
-      "https://token@github.com/tiago/vault.git",
-      "https://gitlab.com/tiago/vault.git",
-      "https://github.com/tiago/a/b.git",
+      "ftp://github.com/emanuelrendas/vault.git",
+      "https://token@github.com/emanuelrendas/vault.git",
+      "https://gitlab.com/emanuelrendas/vault.git",
+      "https://github.com/emanuelrendas/a/b.git",
       "not-a-remote",
     ])(
       "rejects unsupported remote %s",
@@ -313,14 +262,33 @@ describe(
     );
 
     it(
-      "rejects the RAIOC repository even when the host is correct",
+      "rejects a different repository even under Emanuel's GitHub account",
       () => {
         expect(
           evaluateIsolation(
             request(),
             snapshot({
               actualOriginUrl:
-                "https://github.com/tiago/raioc-obsidian-vault2.git",
+                "https://github.com/emanuelrendas/raioc-os.git",
+            }),
+          ),
+        ).toMatchObject({
+          ok: false,
+          code:
+            "REMOTE_IDENTITY_MISMATCH",
+        });
+      },
+    );
+
+    it(
+      "rejects the same repo name under a different owner",
+      () => {
+        expect(
+          evaluateIsolation(
+            request(),
+            snapshot({
+              actualOriginUrl:
+                "https://github.com/someoneelse/raioc-obsidian-vault2.git",
             }),
           ),
         ).toMatchObject({
@@ -339,7 +307,7 @@ describe(
             request(),
             snapshot({
               actualOriginUrl:
-                "https://github.com/tiago/ai-showroom-vault-raioc.git",
+                "https://github.com/emanuelrendas/raioc-obsidian-vault2-sub.git",
             }),
           ),
         ).toMatchObject({
@@ -375,7 +343,7 @@ describe(
   "Gate D credential namespace",
   () => {
     it(
-      "allows AI_SHOWROOM-prefixed project environment names",
+      "allows legitimate ambient RAIOC environment namespaces",
       () => {
         expect(
           evaluateIsolation(
@@ -383,8 +351,10 @@ describe(
             snapshot({
               environmentKeys: [
                 "PATH",
+                "RAIOC_GITHUB_TOKEN",
+                "RAIOC_PROGRESS_SECRET",
+                "RAIOC_SUPABASE_SERVICE_ROLE_KEY",
                 "AI_SHOWROOM_VAULT_PATH",
-                "AI_SHOWROOM_VAULT_REMOTE",
               ],
             }),
           ),
@@ -396,51 +366,20 @@ describe(
       },
     );
 
-    it.each([
-      "RAIOC_GITHUB_TOKEN",
-      "RAIOC_VAULT_TOKEN",
-      "RAIOC_SUPABASE_SERVICE_ROLE_KEY",
-      "RAIOC_PROGRESS_SECRET",
-    ])(
-      "rejects inherited forbidden environment key %s",
-      (
-        forbiddenKey,
-      ) => {
-        expect(
-          evaluateIsolation(
-            request(),
-            snapshot({
-              environmentKeys: [
-                "PATH",
-                "AI_SHOWROOM_VAULT_TOKEN",
-                forbiddenKey,
-              ],
-            }),
-          ),
-        ).toEqual({
-          ok: false,
-          code:
-            "FORBIDDEN_CREDENTIAL_NAMESPACE",
-          environmentKey:
-            forbiddenKey,
-        });
-      },
-    );
-
     it(
-      "requires explicitly configured Showroom credential keys",
+      "still requires an explicitly required AI_SHOWROOM credential",
       () => {
         expect(
           evaluateIsolation(
             request({
-              requiredEnvironmentKeys:
-                [
-                  "AI_SHOWROOM_VAULT_TOKEN",
-                ],
+              requiredEnvironmentKeys: [
+                "AI_SHOWROOM_VAULT_TOKEN",
+              ],
             }),
             snapshot({
               environmentKeys: [
                 "PATH",
+                "RAIOC_GITHUB_TOKEN",
               ],
             }),
           ),
@@ -451,29 +390,6 @@ describe(
           environmentKey:
             "AI_SHOWROOM_VAULT_TOKEN",
         });
-      },
-    );
-
-    it(
-      "never receives credential values as policy input",
-      () => {
-        const decision =
-          evaluateIsolation(
-            request(),
-            snapshot({
-              environmentKeys: [
-                "RAIOC_GITHUB_TOKEN",
-              ],
-            }),
-          );
-
-        expect(
-          JSON.stringify(
-            decision,
-          ),
-        ).not.toContain(
-          "SUPER_SECRET_VALUE",
-        );
       },
     );
   },

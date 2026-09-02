@@ -56,9 +56,7 @@ function request(
       approvedVaultRoot:
         REPO,
 
-      forbiddenRaiocRoots: [
-        "/fake/raioc",
-      ],
+      
 
       approvedRemote:
         "https://github.com/tiago/ai-showroom-vault.git",

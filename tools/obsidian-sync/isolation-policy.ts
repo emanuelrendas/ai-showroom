@@ -1,6 +1,5 @@
 import {
   AI_SHOWROOM_CREDENTIAL_PREFIX,
-  FORBIDDEN_RAIOC_CREDENTIAL_PREFIX,
   type GitRemoteIdentity,
   type IsolationDecision,
   type IsolationRequest,
@@ -23,14 +22,15 @@ function stripTrailingSlash(
 
 export function canonicalizePhysicalPath(
   value: string,
-  mode:
-    PathComparisonMode,
+  mode: PathComparisonMode,
 ): string {
   let normalized =
     value.replaceAll("\\", "/");
 
   normalized =
-    stripTrailingSlash(normalized);
+    stripTrailingSlash(
+      normalized,
+    );
 
   if (
     mode ===
@@ -46,8 +46,7 @@ export function canonicalizePhysicalPath(
 export function isSameOrDescendant(
   parent: string,
   candidate: string,
-  mode:
-    PathComparisonMode,
+  mode: PathComparisonMode,
 ): boolean {
   const canonicalParent =
     canonicalizePhysicalPath(
@@ -75,26 +74,6 @@ export function isSameOrDescendant(
 
   return canonicalCandidate
     .startsWith(prefix);
-}
-
-export function rootsOverlap(
-  left: string,
-  right: string,
-  mode:
-    PathComparisonMode,
-): boolean {
-  return (
-    isSameOrDescendant(
-      left,
-      right,
-      mode,
-    ) ||
-    isSameOrDescendant(
-      right,
-      left,
-      mode,
-    )
-  );
 }
 
 function normalizeRemotePart(
@@ -130,11 +109,18 @@ function identityFromParts(
   }
 
   return {
-    host: normalizedHost,
+    host:
+      normalizedHost,
+
     owner:
-      normalizeRemotePart(owner),
+      normalizeRemotePart(
+        owner,
+      ),
+
     repo:
-      normalizeRemotePart(repo),
+      normalizeRemotePart(
+        repo,
+      ),
   };
 }
 
@@ -152,7 +138,10 @@ export function parseGitRemoteIdentity(
     const [, owner, repo] =
       scpMatch;
 
-    if (!owner || !repo) {
+    if (
+      !owner ||
+      !repo
+    ) {
       return null;
     }
 
@@ -187,7 +176,8 @@ export function parseGitRemoteIdentity(
   }
 
   if (
-    parsed.protocol === "https:"
+    parsed.protocol ===
+    "https:"
   ) {
     if (
       parsed.username.length > 0
@@ -195,10 +185,12 @@ export function parseGitRemoteIdentity(
       return null;
     }
   } else if (
-    parsed.protocol === "ssh:"
+    parsed.protocol ===
+    "ssh:"
   ) {
     if (
-      parsed.username !== "git"
+      parsed.username !==
+      "git"
     ) {
       return null;
     }
@@ -211,14 +203,19 @@ export function parseGitRemoteIdentity(
       .split("/")
       .filter(Boolean);
 
-  if (segments.length !== 2) {
+  if (
+    segments.length !== 2
+  ) {
     return null;
   }
 
   const [owner, repo] =
     segments;
 
-  if (!owner || !repo) {
+  if (
+    !owner ||
+    !repo
+  ) {
     return null;
   }
 
@@ -240,33 +237,10 @@ function remotesEqual(
   );
 }
 
-function findForbiddenCredential(
-  keys: readonly string[],
-): string | null {
-  const forbiddenPrefix =
-    FORBIDDEN_RAIOC_CREDENTIAL_PREFIX
-      .toUpperCase();
-
-  for (const key of keys) {
-    if (
-      key
-        .toUpperCase()
-        .startsWith(
-          forbiddenPrefix,
-        )
-    ) {
-      return key;
-    }
-  }
-
-  return null;
-}
-
 function environmentHasKey(
   keys: readonly string[],
   required: string,
-  mode:
-    PathComparisonMode,
+  mode: PathComparisonMode,
 ): boolean {
   if (
     mode ===
@@ -282,7 +256,9 @@ function environmentHasKey(
     );
   }
 
-  return keys.includes(required);
+  return keys.includes(
+    required,
+  );
 }
 
 export function isSafeVaultRelativeTarget(
@@ -327,12 +303,14 @@ export function evaluateIsolation(
   ) {
     return {
       ok: false,
-      code: "PROJECT_MISMATCH",
+      code:
+        "PROJECT_MISMATCH",
     };
   }
 
   const mode =
-    snapshot.pathComparisonMode;
+    snapshot
+      .pathComparisonMode;
 
   const repoCanonical =
     canonicalizePhysicalPath(
@@ -354,32 +332,15 @@ export function evaluateIsolation(
       ok: false,
       code:
         "VAULT_ROOT_MISMATCH",
-      path: snapshot.repoRoot,
+      path:
+        snapshot.repoRoot,
     };
   }
 
-  for (
-    const raiocRoot of
-    snapshot.raiocRoots
-  ) {
-    if (
-      rootsOverlap(
-        snapshot.vaultRoot,
-        raiocRoot,
-        mode,
-      )
-    ) {
-      return {
-        ok: false,
-        code:
-          "PROJECT_ROOT_OVERLAP",
-        path: raiocRoot,
-      };
-    }
-  }
-
   if (
-    snapshot.targetAnchors.length !==
+    snapshot
+      .targetAnchors
+      .length !==
     request.targets.length
   ) {
     return {
@@ -412,7 +373,8 @@ export function evaluateIsolation(
         ok: false,
         code:
           "TARGET_PATH_ESCAPE",
-        path: expectedTarget,
+        path:
+          expectedTarget,
       };
     }
 
@@ -427,33 +389,15 @@ export function evaluateIsolation(
         ok: false,
         code:
           "TARGET_PATH_ESCAPE",
-        path: expectedTarget,
+        path:
+          expectedTarget,
       };
-    }
-
-    for (
-      const raiocRoot of
-      snapshot.raiocRoots
-    ) {
-      if (
-        isSameOrDescendant(
-          raiocRoot,
-          inspected.resolvedAnchor,
-          mode,
-        )
-      ) {
-        return {
-          ok: false,
-          code:
-            "TARGET_PATH_ESCAPE",
-          path: expectedTarget,
-        };
-      }
     }
   }
 
   if (
-    snapshot.actualOriginUrl ===
+    snapshot
+      .actualOriginUrl ===
     null
   ) {
     return {
@@ -470,7 +414,8 @@ export function evaluateIsolation(
 
   const actualRemote =
     parseGitRemoteIdentity(
-      snapshot.actualOriginUrl,
+      snapshot
+        .actualOriginUrl,
     );
 
   if (
@@ -497,21 +442,6 @@ export function evaluateIsolation(
     };
   }
 
-  const forbiddenKey =
-    findForbiddenCredential(
-      snapshot.environmentKeys,
-    );
-
-  if (forbiddenKey) {
-    return {
-      ok: false,
-      code:
-        "FORBIDDEN_CREDENTIAL_NAMESPACE",
-      environmentKey:
-        forbiddenKey,
-    };
-  }
-
   const requiredKeys =
     request
       .requiredEnvironmentKeys ??
@@ -526,7 +456,8 @@ export function evaluateIsolation(
         AI_SHOWROOM_CREDENTIAL_PREFIX,
       ) ||
       !environmentHasKey(
-        snapshot.environmentKeys,
+        snapshot
+          .environmentKeys,
         required,
         mode,
       )
@@ -545,10 +476,13 @@ export function evaluateIsolation(
     ok: true,
     code:
       "ISOLATION_VERIFIED",
+
     vaultRoot:
       snapshot.vaultRoot,
+
     repoRoot:
       snapshot.repoRoot,
+
     remote:
       actualRemote,
   };

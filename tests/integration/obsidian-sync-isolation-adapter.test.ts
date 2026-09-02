@@ -28,6 +28,10 @@ import {
   NodeIsolationAdapter,
 } from "@/tools/obsidian-sync/node-isolation-adapter";
 
+import {
+  verifyIsolation,
+} from "@/tools/obsidian-sync/isolation-gate";
+
 const roots:
   string[] = [];
 
@@ -73,34 +77,34 @@ async function fixture() {
 
   roots.push(root);
 
-  const showroom =
+  const vault =
     join(
       root,
-      "ai-showroom-vault",
+      "raioc-v2",
     );
 
-  const raioc =
+  const outside =
     join(
       root,
-      "raioc-vault",
+      "outside-folder",
     );
 
   await mkdir(
-    showroom,
+    vault,
     {
       recursive: true,
     },
   );
 
   await mkdir(
-    raioc,
+    outside,
     {
       recursive: true,
     },
   );
 
   await git(
-    showroom,
+    vault,
     [
       "init",
       "--initial-branch=main",
@@ -109,8 +113,8 @@ async function fixture() {
 
   return {
     root,
-    showroom,
-    raioc,
+    vault,
+    outside,
   };
 }
 
@@ -141,11 +145,10 @@ describe(
   "NodeIsolationAdapter real filesystem inspection",
   () => {
     it(
-      "resolves physical repository and project roots locally",
+      "resolves physical repository and vault roots locally",
       async () => {
         const {
-          showroom,
-          raioc,
+          vault,
         } =
           await fixture();
 
@@ -154,13 +157,7 @@ describe(
 
         expect(
           await adapter.realpath(
-            showroom,
-          ),
-        ).toBeTruthy();
-
-        expect(
-          await adapter.realpath(
-            raioc,
+            vault,
           ),
         ).toBeTruthy();
       },
@@ -170,15 +167,16 @@ describe(
       "uses the nearest existing physical parent for a new target",
       async () => {
         const {
-          showroom,
+          vault,
         } =
           await fixture();
 
         const parent =
           join(
-            showroom,
-            "03 - TASKS",
-            "ACTIVE",
+            vault,
+            "04 - AI WORKSPACE",
+            "SPARK",
+            "STATE-UPDATES",
           );
 
         await mkdir(
@@ -194,8 +192,8 @@ describe(
         const anchor =
           await adapter
             .resolveTargetPhysicalAnchor(
-              showroom,
-              "03 - TASKS/ACTIVE/new-task.md",
+              vault,
+              "04 - AI WORKSPACE/SPARK/STATE-UPDATES/new-task.md",
             );
 
         expect(anchor)
@@ -211,14 +209,14 @@ describe(
       "physically follows a local symlink or junction escape",
       async () => {
         const {
-          showroom,
-          raioc,
+          vault,
+          outside,
         } =
           await fixture();
 
         const escape =
           join(
-            showroom,
+            vault,
             "escape",
           );
 
@@ -230,7 +228,7 @@ describe(
 
         try {
           await symlink(
-            raioc,
+            outside,
             escape,
             type,
           );
@@ -261,14 +259,14 @@ describe(
         const anchor =
           await adapter
             .resolveTargetPhysicalAnchor(
-              showroom,
+              vault,
               "escape/new-secret.md",
             );
 
         expect(anchor)
           .toBe(
             await adapter.realpath(
-              raioc,
+              outside,
             ),
           );
       },
@@ -280,10 +278,10 @@ describe(
   "NodeIsolationAdapter local Git remote inspection",
   () => {
     it(
-      "reads origin URL entirely from local Git configuration",
+      "reads approved origin URL entirely from local Git configuration",
       async () => {
         const {
-          showroom,
+          vault,
         } =
           await fixture();
 
@@ -291,10 +289,10 @@ describe(
           new NodeIsolationAdapter();
 
         const remote =
-          "https://github.com/example/ai-showroom-vault.git";
+          "https://github.com/emanuelrendas/raioc-obsidian-vault2.git";
 
         await git(
-          showroom,
+          vault,
           [
             "remote",
             "add",
@@ -306,7 +304,7 @@ describe(
         expect(
           await adapter
             .getOriginUrl(
-              showroom,
+              vault,
             ),
         ).toBe(
           remote,
@@ -315,37 +313,65 @@ describe(
     );
 
     it(
-      "reads a RAIOC remote identity without contacting it",
+      "verifies complete isolation against approved remote identity",
       async () => {
         const {
-          showroom,
+          vault,
         } =
           await fixture();
 
-        const adapter =
-          new NodeIsolationAdapter();
-
-        const remote =
-          "https://github.com/example/raioc-obsidian-vault2.git";
+        const approvedRemote =
+          "https://github.com/emanuelrendas/raioc-obsidian-vault2.git";
 
         await git(
-          showroom,
+          vault,
           [
             "remote",
             "add",
             "origin",
-            remote,
+            approvedRemote,
           ],
         );
 
-        expect(
-          await adapter
-            .getOriginUrl(
-              showroom,
-            ),
-        ).toBe(
-          remote,
-        );
+        const result =
+          await verifyIsolation(
+            {
+              project:
+                "ai-showroom",
+
+              repoPath:
+                vault,
+
+              approvedVaultRoot:
+                vault,
+
+              approvedRemote,
+
+              targets: [],
+
+              requiredEnvironmentKeys:
+                [],
+            },
+            new NodeIsolationAdapter(),
+          );
+
+        expect(result)
+          .toMatchObject({
+            ok: true,
+            code:
+              "ISOLATION_VERIFIED",
+
+            remote: {
+              host:
+                "github.com",
+
+              owner:
+                "emanuelrendas",
+
+              repo:
+                "raioc-obsidian-vault2",
+            },
+          });
       },
     );
 
@@ -353,7 +379,7 @@ describe(
       "returns null when origin is not configured",
       async () => {
         const {
-          showroom,
+          vault,
         } =
           await fixture();
 
@@ -363,7 +389,7 @@ describe(
         expect(
           await adapter
             .getOriginUrl(
-              showroom,
+              vault,
             ),
         ).toBeNull();
       },

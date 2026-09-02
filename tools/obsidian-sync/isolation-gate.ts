@@ -91,30 +91,6 @@ export async function verifyIsolation(
     );
   }
 
-  const raiocRoots:
-    string[] = [];
-
-  for (
-    const configuredRoot of
-    request.forbiddenRaiocRoots
-  ) {
-    try {
-      raiocRoots.push(
-        await adapter.realpath(
-          configuredRoot,
-        ),
-      );
-    } catch {
-      return deny(
-        "RAIOC_REALPATH_FAILED",
-        {
-          path:
-            configuredRoot,
-        },
-      );
-    }
-  }
-
   const targetAnchors:
     TargetPhysicalAnchor[] =
       [];
@@ -189,7 +165,6 @@ export async function verifyIsolation(
     pathComparisonMode,
     repoRoot,
     vaultRoot,
-    raiocRoots,
     targetAnchors,
     actualOriginUrl,
     environmentKeys,

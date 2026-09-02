@@ -18,17 +18,14 @@ import type {
   PathComparisonMode,
 } from "@/tools/obsidian-sync/isolation-types";
 
-const SHOWROOM =
-  "/projects/ai-showroom-vault";
-
-const RAIOC =
-  "/projects/raioc-vault";
+const SHARED_VAULT =
+  "/projects/raioc-v2";
 
 const TARGET =
-  "03 - TASKS/ACTIVE/task.md";
+  "04 - AI WORKSPACE/SPARK/STATE-UPDATES/TASK-AS-0003.md";
 
 const REMOTE =
-  "https://github.com/tiago/ai-showroom-vault.git";
+  "https://github.com/emanuelrendas/raioc-obsidian-vault2.git";
 
 function request(
   overrides:
@@ -39,14 +36,10 @@ function request(
       "ai-showroom",
 
     repoPath:
-      SHOWROOM,
+      SHARED_VAULT,
 
     approvedVaultRoot:
-      SHOWROOM,
-
-    forbiddenRaiocRoots: [
-      RAIOC,
-    ],
+      SHARED_VAULT,
 
     approvedRemote:
       REMOTE,
@@ -69,17 +62,13 @@ class FakeIsolationAdapter
   realpaths =
     new Map<string, string>([
       [
-        SHOWROOM,
-        SHOWROOM,
-      ],
-      [
-        RAIOC,
-        RAIOC,
+        SHARED_VAULT,
+        SHARED_VAULT,
       ],
     ]);
 
   targetAnchor =
-    `${SHOWROOM}/03 - TASKS/ACTIVE`;
+    `${SHARED_VAULT}/04 - AI WORKSPACE/SPARK/STATE-UPDATES`;
 
   origin:
     string | null =
@@ -88,6 +77,8 @@ class FakeIsolationAdapter
   environmentKeys:
     readonly string[] = [
       "PATH",
+      "RAIOC_GITHUB_TOKEN",
+      "RAIOC_PROGRESS_SECRET",
       "AI_SHOWROOM_VAULT_PATH",
     ];
 
@@ -159,7 +150,7 @@ describe(
   "Gate D inspection orchestration",
   () => {
     it(
-      "passes a completely isolated Showroom configuration",
+      "passes an isolated shared vault configuration",
       async () => {
         const adapter =
           new FakeIsolationAdapter();
@@ -189,7 +180,7 @@ describe(
           await verifyIsolation(
             request({
               targets: [
-                "../raioc/secret.md",
+                "../escape/secret.md",
               ],
             }),
             adapter,
@@ -201,7 +192,7 @@ describe(
             code:
               "TARGET_PATH_ESCAPE",
             path:
-              "../raioc/secret.md",
+              "../escape/secret.md",
           });
 
         expect(
@@ -218,7 +209,7 @@ describe(
 
         adapter.realpaths
           .delete(
-            SHOWROOM,
+            SHARED_VAULT,
           );
 
         const result =
@@ -233,35 +224,7 @@ describe(
             code:
               "VAULT_REALPATH_FAILED",
             path:
-              SHOWROOM,
-          });
-      },
-    );
-
-    it(
-      "categorizes RAIOC root resolution failure",
-      async () => {
-        const adapter =
-          new FakeIsolationAdapter();
-
-        adapter.realpaths
-          .delete(
-            RAIOC,
-          );
-
-        const result =
-          await verifyIsolation(
-            request(),
-            adapter,
-          );
-
-        expect(result)
-          .toEqual({
-            ok: false,
-            code:
-              "RAIOC_REALPATH_FAILED",
-            path:
-              RAIOC,
+              SHARED_VAULT,
           });
       },
     );
@@ -273,7 +236,7 @@ describe(
           new FakeIsolationAdapter();
 
         adapter.targetAnchor =
-          `${RAIOC}/secret`;
+          "/some/other/folder";
 
         const result =
           await verifyIsolation(
@@ -286,35 +249,6 @@ describe(
             ok: false,
             code:
               "TARGET_PATH_ESCAPE",
-          });
-      },
-    );
-
-    it(
-      "rejects an inherited RAIOC environment key",
-      async () => {
-        const adapter =
-          new FakeIsolationAdapter();
-
-        adapter.environmentKeys = [
-          "PATH",
-          "AI_SHOWROOM_VAULT_TOKEN",
-          "RAIOC_GITHUB_TOKEN",
-        ];
-
-        const result =
-          await verifyIsolation(
-            request(),
-            adapter,
-          );
-
-        expect(result)
-          .toEqual({
-            ok: false,
-            code:
-              "FORBIDDEN_CREDENTIAL_NAMESPACE",
-            environmentKey:
-              "RAIOC_GITHUB_TOKEN",
           });
       },
     );
@@ -331,7 +265,7 @@ describe(
           new FakeIsolationAdapter();
 
         adapter.origin =
-          "https://github.com/tiago/raioc-obsidian-vault2.git";
+          "https://github.com/emanuelrendas/raioc-os.git";
 
         let executed =
           false;
@@ -379,7 +313,7 @@ describe(
             async () => {
               executed = true;
 
-              return "gate-c";
+              return "action-executed";
             },
           );
 
@@ -392,7 +326,7 @@ describe(
             code:
               "ISOLATION_VERIFIED_AND_EXECUTED",
             result:
-              "gate-c",
+              "action-executed",
           });
       },
     );
