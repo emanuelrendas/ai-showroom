@@ -181,7 +181,24 @@ function validatePolicies(
         };
       }
     }
+    const reviewClosureApproval =
+      change.request
+        .reviewClosureApproval;
 
+    if (
+      reviewClosureApproval &&
+      reviewClosureApproval
+        .baseSha !==
+        transaction
+          .expectedBaseSha
+    ) {
+      return {
+        ok: false,
+        decision: failure(
+          "REVIEW_CLOSURE_BASE_SHA_MISMATCH",
+        ),
+      };
+    }
     validated.push({
       target: gateA.target,
       content:

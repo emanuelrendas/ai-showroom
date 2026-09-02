@@ -178,7 +178,58 @@ function validateCorrectionStructure(content: string): AppendOnlyDecision | null
 
   return null;
 }
+function validateReviewClosureEvent(
+  request:
+    AppendOnlyValidationInput["request"],
+  event:
+    ExtractedEvent,
+): AppendOnlyDecision | null {
+  const approval =
+    request
+      .reviewClosureApproval;
 
+  if (!approval) {
+    return null;
+  }
+
+  if (
+    event.kind !==
+    "update"
+  ) {
+    return {
+      ok: false,
+      code:
+        "REVIEW_CLOSURE_EVENT_MISMATCH",
+    };
+  }
+
+  const previousStatus =
+    readSingleRequiredField(
+      event.content,
+      "Previous Status",
+    );
+
+  const newStatus =
+    readSingleRequiredField(
+      event.content,
+      "New Status",
+    );
+
+  if (
+    previousStatus !==
+      approval.fromStatus ||
+    newStatus !==
+      approval.toStatus
+  ) {
+    return {
+      ok: false,
+      code:
+        "REVIEW_CLOSURE_EVENT_MISMATCH",
+    };
+  }
+
+  return null;
+}
 export function validateAppendOnlyMutation({
   request,
   currentContent,
@@ -243,13 +294,25 @@ export function validateAppendOnlyMutation({
       ? validateUpdateStructure(request, extracted.content)
       : validateCorrectionStructure(extracted.content);
 
-  if (structuralFailure) {
-    return structuralFailure;
-  }
+if (structuralFailure) {
+  return structuralFailure;
+}
 
-  return {
-    ok: true,
-    code: "APPEND_ONLY_VALID",
-    appendedContent: extracted.content,
-  };
+const reviewClosureFailure =
+  validateReviewClosureEvent(
+    request,
+    extracted,
+  );
+
+if (
+  reviewClosureFailure
+) {
+  return reviewClosureFailure;
+}
+
+return {
+  ok: true,
+  code: "APPEND_ONLY_VALID",
+  appendedContent: extracted.content,
+};
 }

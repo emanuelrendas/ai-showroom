@@ -9,6 +9,8 @@ import {
 export const AI_SHOWROOM_SHARED_VAULT_NAMESPACE =
   "04 - AI WORKSPACE/AI-SHOWROOM/" as const;
 
+const FULL_SHA_PATTERN =
+  /^[0-9a-f]{40}$/;
 const SOL_WRITE_PREFIXES = [
   `${AI_SHOWROOM_SHARED_VAULT_NAMESPACE}SOL/`,
 ] as const;
@@ -195,7 +197,69 @@ function isRolePathAllowed(
       return false;
   }
 }
+function isAuthorizedReviewClosure(
+  request:
+    VaultMutationRequest,
+  artifact:
+    ArtifactPolicyState,
+  target: string,
+): boolean {
+  const approval =
+    request
+      .reviewClosureApproval;
 
+  if (!approval) {
+    return false;
+  }
+if (
+  typeof approval.target !==
+    "string" ||
+  typeof approval.baseSha !==
+    "string" ||
+  typeof approval.approvalId !==
+    "string"
+) {
+  return false;
+}
+  const approvalTarget =
+    normalizeVaultTarget(
+      approval.target,
+    );
+
+  return (
+    request.actor ===
+      "spark" &&
+    request.operation ===
+      "append" &&
+    request.mutationKind ===
+      "append-state" &&
+
+    artifact.type ===
+      "task" &&
+    artifact.status ===
+      "review" &&
+
+    approval.approvedBy ===
+      "tiago" &&
+    approval.task ===
+      request.task &&
+    approvalTarget ===
+      target &&
+
+    approval.fromStatus ===
+      "review" &&
+    approval.toStatus ===
+      "done" &&
+
+    FULL_SHA_PATTERN.test(
+      approval.baseSha,
+    ) &&
+
+    approval.approvalId
+      .trim()
+      .length > 0
+  );
+}
 export function validateVaultMutation({
   request,
   artifact,
@@ -330,38 +394,59 @@ export function validateVaultMutation({
     };
   }
 
-  if (
-    artifact.status ===
-    "review"
-  ) {
-    const permittedSparkStateUpdate =
-      request.actor ===
-        "spark" &&
-      request.mutationKind ===
-        "state-metadata" &&
-      (
-        artifact.type ===
-          "task" ||
-        artifact.type ===
-          "command-state"
-      );
+const permittedReviewClosure =
+  isAuthorizedReviewClosure(
+    request,
+    artifact,
+    target,
+  );
 
-    if (
-      !permittedSparkStateUpdate
-    ) {
-      return {
-        ok: false,
-        code:
-          "REVIEW_WRITE_FORBIDDEN",
-        target,
-      };
-    }
-  }
-
+if (
+  request
+    .reviewClosureApproval !==
+    undefined &&
+  !permittedReviewClosure
+) {
   return {
-    ok: true,
+    ok: false,
     code:
-      "AUTHORIZED",
+      "REVIEW_WRITE_FORBIDDEN",
     target,
   };
+}
+
+if (
+  artifact.status ===
+  "review"
+) {
+  const permittedSparkStateMetadata =
+    request.actor ===
+      "spark" &&
+    request.mutationKind ===
+      "state-metadata" &&
+    (
+      artifact.type ===
+        "task" ||
+      artifact.type ===
+        "command-state"
+    );
+
+  if (
+    !permittedSparkStateMetadata &&
+    !permittedReviewClosure
+  ) {
+    return {
+      ok: false,
+      code:
+        "REVIEW_WRITE_FORBIDDEN",
+      target,
+    };
+  }
+}
+return {
+  ok: true,
+  code:
+    "AUTHORIZED",
+  target,
+};
 }

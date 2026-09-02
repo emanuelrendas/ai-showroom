@@ -44,6 +44,16 @@ export type ActiveWriter =
   | "spark"
   | null;
 
+export type ReviewClosureApproval = {
+  approvedBy: "tiago";
+  task: string;
+  target: string;
+  fromStatus: "review";
+  toStatus: "done";
+  baseSha: string;
+  approvalId: string;
+};
+
 export type VaultMutationRequest = {
   project: string;
   task: string;
@@ -51,6 +61,9 @@ export type VaultMutationRequest = {
   operation: SyncOperation;
   mutationKind: MutationKind;
   target: string;
+
+  reviewClosureApproval?:
+    ReviewClosureApproval;
 };
 
 export type ArtifactPolicyState = {
@@ -106,7 +119,8 @@ export type AppendOnlyDenyCode =
   | "MALFORMED_STATE_EVENT"
   | "MULTIPLE_STATE_EVENTS"
   | "ACTOR_MISMATCH"
-  | "TASK_MISMATCH";
+  | "TASK_MISMATCH"
+  | "REVIEW_CLOSURE_EVENT_MISMATCH";
 
 export type AppendOnlyDecision =
   | {
@@ -153,6 +167,7 @@ export type GitTransactionRequest = {
 
 export type GitTransactionDenyCode =
   | "PROJECT_MISMATCH"
+  | "REVIEW_CLOSURE_BASE_SHA_MISMATCH"
   | "INVALID_BASE_SHA"
   | "INVALID_TARGET_BRANCH"
   | "EMPTY_CHANGESET"
