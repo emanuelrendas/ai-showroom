@@ -1,29 +1,31 @@
-import { describe, expect, it } from "vitest";
 import {
+  describe,
+  expect,
+  it,
+} from "vitest";
+
+import {
+  AI_SHOWROOM_SHARED_VAULT_NAMESPACE,
   normalizeVaultTarget,
   validateVaultMutation,
 } from "@/tools/obsidian-sync/contract-validator";
+
 import type {
   ArtifactPolicyState,
   AuthorizedTaskScope,
   VaultMutationRequest,
 } from "@/tools/obsidian-sync/types";
 
-const TASK_ID = "TASK-AS-0003";
+const TASK =
+  "TASK-AS-0003";
 
-const taskScope: AuthorizedTaskScope = {
-  project: "ai-showroom",
-  task: TASK_ID,
-  allowedTargetPrefixes: [
-    "00 - COMMAND CENTER/",
-    "03 - TASKS/",
-    "04 - AI WORKSPACE/SPARK/",
-    "07 - HANDOFFS/",
-    "08 - EVIDENCE/",
-  ],
-};
+const SOL_TARGET =
+  `${AI_SHOWROOM_SHARED_VAULT_NAMESPACE}SOL/NOTES/TASK-AS-0003.md`;
 
-const artifact: ArtifactPolicyState = {
+const SPARK_TARGET =
+  `${AI_SHOWROOM_SHARED_VAULT_NAMESPACE}SPARK/STATE-UPDATES/TASK-AS-0003.md`;
+
+const defaultArtifact: ArtifactPolicyState = {
   exists: true,
   type: "task",
   status: "active",
@@ -33,97 +35,248 @@ const artifact: ArtifactPolicyState = {
   writeLockTask: null,
 };
 
-function request(
+function makeRequest(
+  actor: VaultMutationRequest["actor"],
+  target: string,
   overrides: Partial<VaultMutationRequest> = {},
 ): VaultMutationRequest {
   return {
     project: "ai-showroom",
-    task: TASK_ID,
-    actor: "spark",
+    task: TASK,
+    actor,
     operation: "update",
-    mutationKind: "state-metadata",
-    target: "03 - TASKS/ACTIVE/TASK-AS-0003-AUTOMATED-OBSIDIAN-SYNC.md",
+    mutationKind: "substantive",
+    target,
     ...overrides,
   };
 }
 
-describe("normalizeVaultTarget", () => {
-  it("normalizes Windows separators to a vault-relative POSIX-style path", () => {
-    expect(
-      normalizeVaultTarget(
-        "03 - TASKS\\ACTIVE\\TASK-AS-0003-AUTOMATED-OBSIDIAN-SYNC.md",
-      ),
-    ).toBe("03 - TASKS/ACTIVE/TASK-AS-0003-AUTOMATED-OBSIDIAN-SYNC.md");
+function makeScope(
+  prefixes: readonly string[],
+  task: string = TASK,
+): AuthorizedTaskScope {
+  return {
+    project: "ai-showroom",
+    task,
+    allowedTargetPrefixes: prefixes,
+  };
+}
+
+describe("Gate A — target normalization", () => {
+  it("normalizes standard relative paths and forward slashes", () => {
+    expect(normalizeVaultTarget("a/b/c.md")).toBe("a/b/c.md");
   });
 
-  it.each([
-    "../RAIOC V2/secret.md",
-    "03 - TASKS/../../outside.md",
-    "03 - TASKS/./ACTIVE/task.md",
-    "C:\\Users\\diore\\Documents\\AI Showroom\\note.md",
-    "/absolute/note.md",
-    "",
-    "   ",
-  ])("rejects invalid non-vault-relative target %s", (target) => {
-    expect(normalizeVaultTarget(target)).toBeNull();
+  it("normalizes Windows backslashes", () => {
+    expect(normalizeVaultTarget("a\\b\\c.md")).toBe("a/b/c.md");
+  });
+
+  it("rejects empty, absolute, or traversing targets", () => {
+    expect(normalizeVaultTarget("")).toBeNull();
+    expect(normalizeVaultTarget("/root.md")).toBeNull();
+    expect(normalizeVaultTarget("C:/root.md")).toBeNull();
+    expect(normalizeVaultTarget("../escape.md")).toBeNull();
+    expect(normalizeVaultTarget("a/../b.md")).toBeNull();
+    expect(normalizeVaultTarget("a/./b.md")).toBeNull();
   });
 });
 
-describe("explicit project and task identity", () => {
-  it("allows an explicit valid AI Showroom request", () => {
-    expect(
-      validateVaultMutation({
-        request: request(),
-        artifact,
-        taskScope,
-      }),
-    ).toEqual({
-      ok: true,
-      code: "AUTHORIZED",
-      target: "03 - TASKS/ACTIVE/TASK-AS-0003-AUTOMATED-OBSIDIAN-SYNC.md",
+describe("Gate A — project and task scope checks", () => {
+  it("rejects project mismatch", () => {
+    const req = makeRequest("sol", SOL_TARGET, { project: "wrong-project" });
+    const res = validateVaultMutation({
+      request: req,
+      artifact: defaultArtifact,
+      taskScope: makeScope([`${AI_SHOWROOM_SHARED_VAULT_NAMESPACE}SOL/`]),
     });
-  });
-
-  it("rejects a project other than ai-showroom", () => {
-    expect(
-      validateVaultMutation({
-        request: request({
-          project: "raioc",
-        }),
-        artifact,
-        taskScope,
-      }),
-    ).toMatchObject({
+    expect(res).toMatchObject({
       ok: false,
       code: "PROJECT_MISMATCH",
     });
   });
 
-  it("rejects a request whose task does not match explicit task scope", () => {
-    expect(
-      validateVaultMutation({
-        request: request({
-          task: "TASK-AS-9999",
-        }),
-        artifact,
-        taskScope,
-      }),
-    ).toMatchObject({
+  it("rejects task mismatch", () => {
+    const req = makeRequest("sol", SOL_TARGET, { task: "TASK-OTHER" });
+    const res = validateVaultMutation({
+      request: req,
+      artifact: defaultArtifact,
+      taskScope: makeScope([`${AI_SHOWROOM_SHARED_VAULT_NAMESPACE}SOL/`]),
+    });
+    expect(res).toMatchObject({
       ok: false,
       code: "TASK_SCOPE_MISMATCH",
     });
   });
 });
 
-describe("role and target authority", () => {
-  it("rejects Flash mutation requests unconditionally", () => {
+describe("Gate A — shared RAIOC V2 vault namespace", () => {
+  it("allows Sol only inside the canonical Sol tenant", () => {
     expect(
       validateVaultMutation({
-        request: request({
-          actor: "flash",
-        }),
-        artifact,
-        taskScope,
+        request: makeRequest("sol", SOL_TARGET),
+        artifact: defaultArtifact,
+        taskScope: makeScope([`${AI_SHOWROOM_SHARED_VAULT_NAMESPACE}SOL/`]),
+      }),
+    ).toEqual({
+      ok: true,
+      code: "AUTHORIZED",
+      target: SOL_TARGET,
+    });
+  });
+
+  it("allows Spark only inside the canonical Spark tenant", () => {
+    expect(
+      validateVaultMutation({
+        request: makeRequest("spark", SPARK_TARGET),
+        artifact: defaultArtifact,
+        taskScope: makeScope([`${AI_SHOWROOM_SHARED_VAULT_NAMESPACE}SPARK/`]),
+      }),
+    ).toEqual({
+      ok: true,
+      code: "AUTHORIZED",
+      target: SPARK_TARGET,
+    });
+  });
+
+  it.each([
+    "00 - COMMAND CENTER/CURRENT-STATE.md",
+    "01 - ARCHITECTURE/SYSTEM-ARCHITECTURE.md",
+    "02 - MILESTONES/OBSIDIAN-AI-SYNC.md",
+    "03 - TASKS/ACTIVE/TASK-AS-0003.md",
+    "04 - AI WORKSPACE/SPARK/STATE-UPDATES/TASK-AS-0003.md",
+    "05 - REVIEWS/FLASH-AUDITS/AUDIT.md",
+    "06 - KNOWLEDGE/NOTES.md",
+    "07 - HANDOFFS/AI-TO-AI/HANDOFF.md",
+    "08 - EVIDENCE/TESTS/EVIDENCE.md",
+    "04 - MISSIONS/ACTIVE/MISSION-TEST.md",
+  ])("hard-rejects Sol outside the AI Showroom namespace: %s", (target) => {
+    expect(
+      validateVaultMutation({
+        request: makeRequest("sol", target),
+        artifact: defaultArtifact,
+        taskScope: makeScope([
+          "00 - COMMAND CENTER/",
+          "01 - ARCHITECTURE/",
+          "02 - MILESTONES/",
+          "03 - TASKS/",
+          "04 - AI WORKSPACE/",
+          "04 - MISSIONS/",
+          "05 - REVIEWS/",
+          "06 - KNOWLEDGE/",
+          "07 - HANDOFFS/",
+          "08 - EVIDENCE/",
+        ]),
+      }),
+    ).toMatchObject({
+      ok: false,
+      code: "ROLE_PATH_FORBIDDEN",
+      target,
+    });
+  });
+
+  it.each([
+    "00 - COMMAND CENTER/CURRENT-STATE.md",
+    "03 - TASKS/ACTIVE/TASK-AS-0003.md",
+    "04 - AI WORKSPACE/SOL/NOTES/file.md",
+    "04 - MISSIONS/ACTIVE/MISSION-API-TEST.md",
+    "08 - EVIDENCE/result.md",
+  ])("hard-rejects Spark outside the AI Showroom namespace: %s", (target) => {
+    expect(
+      validateVaultMutation({
+        request: makeRequest("spark", target),
+        artifact: defaultArtifact,
+        taskScope: makeScope([
+          "00 - COMMAND CENTER/",
+          "03 - TASKS/",
+          "04 - AI WORKSPACE/",
+          "04 - MISSIONS/",
+          "08 - EVIDENCE/",
+        ]),
+      }),
+    ).toMatchObject({
+      ok: false,
+      code: "ROLE_PATH_FORBIDDEN",
+      target,
+    });
+  });
+
+  it("rejects Sol attempting to write into Spark's tenant", () => {
+    expect(
+      validateVaultMutation({
+        request: makeRequest("sol", SPARK_TARGET),
+        artifact: defaultArtifact,
+        taskScope: makeScope([AI_SHOWROOM_SHARED_VAULT_NAMESPACE]),
+      }),
+    ).toMatchObject({
+      ok: false,
+      code: "ROLE_PATH_FORBIDDEN",
+    });
+  });
+
+  it("rejects Spark attempting to write into Sol's tenant", () => {
+    expect(
+      validateVaultMutation({
+        request: makeRequest("spark", SOL_TARGET),
+        artifact: defaultArtifact,
+        taskScope: makeScope([AI_SHOWROOM_SHARED_VAULT_NAMESPACE]),
+      }),
+    ).toMatchObject({
+      ok: false,
+      code: "ROLE_PATH_FORBIDDEN",
+    });
+  });
+
+  it("rejects a deceptive sibling namespace", () => {
+    const deceptiveTarget = "04 - AI WORKSPACE/AI-SHOWROOM-OLD/SPARK/state.md";
+    expect(
+      validateVaultMutation({
+        request: makeRequest("spark", deceptiveTarget),
+        artifact: defaultArtifact,
+        taskScope: makeScope(["04 - AI WORKSPACE/"]),
+      }),
+    ).toMatchObject({
+      ok: false,
+      code: "ROLE_PATH_FORBIDDEN",
+    });
+  });
+
+  it("rejects the parent AI WORKSPACE folder itself", () => {
+    const target = "04 - AI WORKSPACE/random.md";
+    expect(
+      validateVaultMutation({
+        request: makeRequest("sol", target),
+        artifact: defaultArtifact,
+        taskScope: makeScope(["04 - AI WORKSPACE/"]),
+      }),
+    ).toMatchObject({
+      ok: false,
+      code: "ROLE_PATH_FORBIDDEN",
+    });
+  });
+
+  it("normalizes backslashes but still enforces the Spark tenant", () => {
+    const windowsStyle =
+      "04 - AI WORKSPACE\\AI-SHOWROOM\\SPARK\\STATE-UPDATES\\TASK-AS-0003.md";
+
+    expect(
+      validateVaultMutation({
+        request: makeRequest("spark", windowsStyle),
+        artifact: defaultArtifact,
+        taskScope: makeScope([`${AI_SHOWROOM_SHARED_VAULT_NAMESPACE}SPARK/`]),
+      }),
+    ).toEqual({
+      ok: true,
+      code: "AUTHORIZED",
+      target: SPARK_TARGET,
+    });
+  });
+
+  it("preserves FLASH_READ_ONLY as the stronger Flash invariant", () => {
+    expect(
+      validateVaultMutation({
+        request: makeRequest("flash", SPARK_TARGET),
+        artifact: defaultArtifact,
+        taskScope: makeScope([AI_SHOWROOM_SHARED_VAULT_NAMESPACE]),
       }),
     ).toMatchObject({
       ok: false,
@@ -131,46 +284,13 @@ describe("role and target authority", () => {
     });
   });
 
-  it("rejects a target outside explicit task scope", () => {
+  it("constrains Tiago's automated pipeline writes to the AI Showroom tenant", () => {
+    const outside = "00 - COMMAND CENTER/CURRENT-STATE.md";
     expect(
       validateVaultMutation({
-        request: request({
-          actor: "sol",
-          target: "01 - ARCHITECTURE/SYSTEM-ARCHITECTURE.md",
-          mutationKind: "substantive",
-        }),
-        artifact: {
-          ...artifact,
-          type: "architecture",
-          owner: "sol",
-        },
-        taskScope,
-      }),
-    ).toMatchObject({
-      ok: false,
-      code: "TARGET_OUTSIDE_TASK_SCOPE",
-    });
-  });
-
-  it("rejects Spark architecture writes even if task scope is widened", () => {
-    const widenedScope: AuthorizedTaskScope = {
-      ...taskScope,
-      allowedTargetPrefixes: ["01 - ARCHITECTURE/"],
-    };
-
-    expect(
-      validateVaultMutation({
-        request: request({
-          actor: "spark",
-          target: "01 - ARCHITECTURE/SYSTEM-ARCHITECTURE.md",
-          mutationKind: "substantive",
-        }),
-        artifact: {
-          ...artifact,
-          type: "architecture",
-          owner: "sol",
-        },
-        taskScope: widenedScope,
+        request: makeRequest("tiago", outside),
+        artifact: defaultArtifact,
+        taskScope: makeScope(["00 - COMMAND CENTER/"]),
       }),
     ).toMatchObject({
       ok: false,
@@ -178,248 +298,80 @@ describe("role and target authority", () => {
     });
   });
 
-  it("rejects Spark milestone writes even if task scope is widened", () => {
-    const widenedScope: AuthorizedTaskScope = {
-      ...taskScope,
-      allowedTargetPrefixes: ["02 - MILESTONES/"],
-    };
-
+  it("allows Tiago automated authority anywhere inside the AI Showroom tenant", () => {
+    const target = `${AI_SHOWROOM_SHARED_VAULT_NAMESPACE}SOL/HUMAN-REVIEW.md`;
     expect(
       validateVaultMutation({
-        request: request({
-          actor: "spark",
-          target: "02 - MILESTONES/OBSIDIAN-AI-SYNC/OAS-STATE.md",
-          mutationKind: "state-metadata",
-        }),
-        artifact: {
-          ...artifact,
-          type: "milestone",
-          owner: "sol",
-        },
-        taskScope: widenedScope,
-      }),
-    ).toMatchObject({
-      ok: false,
-      code: "ROLE_PATH_FORBIDDEN",
-    });
-  });
-
-  it("allows Sol architecture writes when explicitly inside task scope", () => {
-    const solScope: AuthorizedTaskScope = {
-      ...taskScope,
-      allowedTargetPrefixes: ["01 - ARCHITECTURE/"],
-    };
-
-    expect(
-      validateVaultMutation({
-        request: request({
-          actor: "sol",
-          target: "01 - ARCHITECTURE/INTEGRATIONS/OBSIDIAN-SYNC.md",
-          mutationKind: "substantive",
-        }),
-        artifact: {
-          ...artifact,
-          type: "architecture",
-          owner: "sol",
-        },
-        taskScope: solScope,
+        request: makeRequest("tiago", target),
+        artifact: defaultArtifact,
+        taskScope: makeScope([AI_SHOWROOM_SHARED_VAULT_NAMESPACE]),
       }),
     ).toMatchObject({
       ok: true,
       code: "AUTHORIZED",
+      target,
     });
   });
 });
 
-describe("artifact policy state", () => {
-  it("rejects every AI write to a frozen artifact", () => {
-    expect(
-      validateVaultMutation({
-        request: request({
-          actor: "sol",
-        }),
-        artifact: {
-          ...artifact,
-          frozen: true,
-        },
-        taskScope,
-      }),
-    ).toMatchObject({
+describe("Gate A — artifact state rules", () => {
+  it("rejects writes to frozen artifacts", () => {
+    const res = validateVaultMutation({
+      request: makeRequest("sol", SOL_TARGET),
+      artifact: { ...defaultArtifact, frozen: true },
+      taskScope: makeScope([`${AI_SHOWROOM_SHARED_VAULT_NAMESPACE}SOL/`]),
+    });
+    expect(res).toMatchObject({
       ok: false,
       code: "FROZEN_ARTIFACT",
     });
   });
 
-  it("rejects an artifact locked by a different writer", () => {
-    expect(
-      validateVaultMutation({
-        request: request({
-          actor: "spark",
-        }),
-        artifact: {
-          ...artifact,
-          activeWriter: "sol",
-        },
-        taskScope,
-      }),
-    ).toMatchObject({
+  it("rejects writes when locked by another actor", () => {
+    const res = validateVaultMutation({
+      request: makeRequest("sol", SOL_TARGET),
+      artifact: { ...defaultArtifact, activeWriter: "spark" },
+      taskScope: makeScope([`${AI_SHOWROOM_SHARED_VAULT_NAMESPACE}SOL/`]),
+    });
+    expect(res).toMatchObject({
       ok: false,
       code: "WRITE_LOCKED_BY_OTHER_ACTOR",
     });
   });
 
-  it("allows the current active writer", () => {
-    expect(
-      validateVaultMutation({
-        request: request({
-          actor: "spark",
-        }),
-        artifact: {
-          ...artifact,
-          activeWriter: "spark",
-        },
-        taskScope,
-      }),
-    ).toMatchObject({
-      ok: true,
-      code: "AUTHORIZED",
+  it("rejects writes when locked by another task", () => {
+    const res = validateVaultMutation({
+      request: makeRequest("sol", SOL_TARGET),
+      artifact: { ...defaultArtifact, writeLockTask: "TASK-AS-0001" },
+      taskScope: makeScope([`${AI_SHOWROOM_SHARED_VAULT_NAMESPACE}SOL/`]),
     });
-  });
-
-  it("rejects an artifact locked to a different task", () => {
-    expect(
-      validateVaultMutation({
-        request: request(),
-        artifact: {
-          ...artifact,
-          writeLockTask: "TASK-AS-0002",
-        },
-        taskScope,
-      }),
-    ).toMatchObject({
+    expect(res).toMatchObject({
       ok: false,
       code: "WRITE_LOCKED_BY_OTHER_TASK",
     });
   });
 
-  it("allows the task that owns the write lock", () => {
-    expect(
-      validateVaultMutation({
-        request: request(),
-        artifact: {
-          ...artifact,
-          writeLockTask: TASK_ID,
-        },
-        taskScope,
-      }),
-    ).toMatchObject({
+  it("allows Spark state-metadata updates in review status", () => {
+    const res = validateVaultMutation({
+      request: makeRequest("spark", SPARK_TARGET, { mutationKind: "state-metadata" }),
+      artifact: { ...defaultArtifact, status: "review", type: "task" },
+      taskScope: makeScope([`${AI_SHOWROOM_SHARED_VAULT_NAMESPACE}SPARK/`]),
+    });
+    expect(res).toMatchObject({
       ok: true,
       code: "AUTHORIZED",
     });
   });
 
-  it("rejects substantive writes while an artifact is in review", () => {
-    expect(
-      validateVaultMutation({
-        request: request({
-          actor: "sol",
-          mutationKind: "substantive",
-        }),
-        artifact: {
-          ...artifact,
-          status: "review",
-        },
-        taskScope,
-      }),
-    ).toMatchObject({
+  it("rejects substantive writes during review status", () => {
+    const res = validateVaultMutation({
+      request: makeRequest("sol", SOL_TARGET, { mutationKind: "substantive" }),
+      artifact: { ...defaultArtifact, status: "review", type: "task" },
+      taskScope: makeScope([`${AI_SHOWROOM_SHARED_VAULT_NAMESPACE}SOL/`]),
+    });
+    expect(res).toMatchObject({
       ok: false,
       code: "REVIEW_WRITE_FORBIDDEN",
-    });
-  });
-
-  it("allows Spark state metadata on a task during review", () => {
-    expect(
-      validateVaultMutation({
-        request: request({
-          actor: "spark",
-          mutationKind: "state-metadata",
-          target: "03 - TASKS/REVIEW/TASK-AS-0003-AUTOMATED-OBSIDIAN-SYNC.md",
-        }),
-        artifact: {
-          ...artifact,
-          status: "review",
-          type: "task",
-        },
-        taskScope: {
-          ...taskScope,
-          allowedTargetPrefixes: ["03 - TASKS/"],
-        },
-      }),
-    ).toMatchObject({
-      ok: true,
-      code: "AUTHORIZED",
-    });
-  });
-
-  it("allows Spark state metadata on command-state during review", () => {
-    expect(
-      validateVaultMutation({
-        request: request({
-          actor: "spark",
-          mutationKind: "state-metadata",
-          target: "00 - COMMAND CENTER/CURRENT-STATE.md",
-        }),
-        artifact: {
-          ...artifact,
-          status: "review",
-          type: "command-state",
-          owner: "tiago",
-        },
-        taskScope: {
-          ...taskScope,
-          allowedTargetPrefixes: ["00 - COMMAND CENTER/"],
-        },
-      }),
-    ).toMatchObject({
-      ok: true,
-      code: "AUTHORIZED",
-    });
-  });
-
-  it("rejects Spark substantive task content changes during review", () => {
-    expect(
-      validateVaultMutation({
-        request: request({
-          actor: "spark",
-          mutationKind: "substantive",
-          target: "03 - TASKS/REVIEW/TASK-AS-0003-AUTOMATED-OBSIDIAN-SYNC.md",
-        }),
-        artifact: {
-          ...artifact,
-          status: "review",
-          type: "task",
-        },
-        taskScope,
-      }),
-    ).toMatchObject({
-      ok: false,
-      code: "REVIEW_WRITE_FORBIDDEN",
-    });
-  });
-});
-
-describe("hermetic Gate A behavior", () => {
-  it("returns a decision using only supplied data", () => {
-    const result = validateVaultMutation({
-      request: request(),
-      artifact,
-      taskScope,
-    });
-
-    expect(result).toEqual({
-      ok: true,
-      code: "AUTHORIZED",
-      target: "03 - TASKS/ACTIVE/TASK-AS-0003-AUTOMATED-OBSIDIAN-SYNC.md",
     });
   });
 });
