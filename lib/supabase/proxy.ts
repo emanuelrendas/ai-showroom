@@ -3,6 +3,15 @@ import { NextResponse, type NextRequest } from "next/server";
 import { getPublicSupabaseEnv } from "@/lib/env";
 import type { Database } from "@/lib/supabase/database.types";
 
+export function isProtectedAppPath(pathname: string) {
+  return (
+    pathname === "/app" ||
+    pathname.startsWith("/app/") ||
+    pathname === "/w" ||
+    pathname.startsWith("/w/")
+  );
+}
+
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });
   const { url, publishableKey } = getPublicSupabaseEnv();
@@ -26,7 +35,22 @@ export async function updateSession(request: NextRequest) {
     },
   });
 
-  await supabase.auth.getClaims();
+  const { data } = await supabase.auth.getClaims();
+  const user = data?.claims;
+
+  if (!user && isProtectedAppPath(request.nextUrl.pathname)) {
+    const redirectUrl = request.nextUrl.clone();
+    redirectUrl.pathname = "/sign-in";
+    redirectUrl.search = "";
+
+    const redirectResponse = NextResponse.redirect(redirectUrl);
+
+    response.cookies.getAll().forEach((cookie) => {
+      redirectResponse.cookies.set(cookie);
+    });
+
+    return redirectResponse;
+  }
 
   return response;
 }
