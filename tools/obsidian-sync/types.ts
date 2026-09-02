@@ -91,3 +91,34 @@ export type ContractDecision =
       code: ContractDenyCode;
       target?: string;
     };
+
+/*
+ * Gate B — Append-Only Validator
+ */
+export type AppendOnlyDenyCode =
+  | "NOT_APPEND_STATE_OPERATION"
+  | "CURRENT_HISTORY_MODIFIED"
+  | "CURRENT_HISTORY_DELETED"
+  | "NO_CONTENT_APPENDED"
+  | "INVALID_APPEND_BOUNDARY"
+  | "MALFORMED_STATE_EVENT"
+  | "MULTIPLE_STATE_EVENTS"
+  | "ACTOR_MISMATCH"
+  | "TASK_MISMATCH";
+
+export type AppendOnlyDecision =
+  | {
+      ok: true;
+      code: "APPEND_ONLY_VALID";
+      appendedContent: string;
+    }
+  | {
+      ok: false;
+      code: AppendOnlyDenyCode;
+    };
+
+export type AppendOnlyValidationInput = {
+  request: VaultMutationRequest;
+  currentContent: string;
+  proposedContent: string;
+};
