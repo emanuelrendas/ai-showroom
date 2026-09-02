@@ -1,4 +1,5 @@
 export const AI_SHOWROOM_PROJECT = "ai-showroom" as const;
+
 export type SyncProject = typeof AI_SHOWROOM_PROJECT;
 
 export type SyncActor =
@@ -95,6 +96,7 @@ export type ContractDecision =
 /*
  * Gate B — Append-Only Validator
  */
+
 export type AppendOnlyDenyCode =
   | "NOT_APPEND_STATE_OPERATION"
   | "CURRENT_HISTORY_MODIFIED"
@@ -122,3 +124,67 @@ export type AppendOnlyValidationInput = {
   currentContent: string;
   proposedContent: string;
 };
+
+/*
+ * Gate C — Git Transaction Layer / SHA-CAS
+ */
+
+export type PreparedVaultChange = {
+  request: VaultMutationRequest;
+  artifact: ArtifactPolicyState;
+  taskScope: AuthorizedTaskScope;
+  currentContent: string;
+  proposedContent: string;
+};
+
+export type GitTransactionRequest = {
+  project: string;
+  task: string;
+
+  repoPath: string;
+  targetBranch: string;
+
+  expectedBaseSha: string;
+
+  changes: readonly PreparedVaultChange[];
+
+  commitMessage: string;
+};
+
+export type GitTransactionDenyCode =
+  | "PROJECT_MISMATCH"
+  | "INVALID_BASE_SHA"
+  | "INVALID_TARGET_BRANCH"
+  | "EMPTY_CHANGESET"
+  | "GATE_A_REJECTED"
+  | "GATE_B_REJECTED"
+  | "PRIMARY_WORKTREE_DIRTY"
+  | "LOCAL_HEAD_MISMATCH"
+  | "REMOTE_HEAD_MISMATCH"
+  | "UNEXPECTED_CHANGED_PATH"
+  | "EXPECTED_CHANGED_PATH_MISSING"
+  | "COMMIT_PARENT_MISMATCH"
+  | "PUSH_REJECTED"
+  | "REMOTE_VERIFY_MISMATCH"
+  | "GIT_COMMAND_FAILED"
+  | "TRANSACTION_CLEANUP_FAILED";
+
+export type GitPolicyCode =
+  | ContractDenyCode
+  | AppendOnlyDenyCode;
+
+export type GitTransactionDecision =
+  | {
+      ok: true;
+      code: "COMMITTED_AND_PUSHED";
+      baseSha: string;
+      resultSha: string;
+      targetBranch: string;
+      changedPaths: readonly string[];
+    }
+  | {
+      ok: false;
+      code: GitTransactionDenyCode;
+      policyCode?: GitPolicyCode;
+      path?: string;
+    };
