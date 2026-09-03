@@ -747,5 +747,53 @@ describe(
         );
       },
     );
+        it(
+      "provides production dependencies for governed live closure execution",
+      async () => {
+        const runnerModule =
+          await import(
+            "../../tools/obsidian-sync/review-closure-runner"
+          );
+
+        const createDependencies =
+          (
+            runnerModule as Record<
+              string,
+              unknown
+            >
+          )
+            .createProductionReviewClosureDependencies;
+
+        expect(
+          typeof createDependencies,
+        ).toBe(
+          "function",
+        );
+      },
+    );
+        it(
+      "exposes the governed production main entry point",
+      async () => {
+        const runnerModule =
+          await import(
+            "../../tools/obsidian-sync/review-closure-runner"
+          );
+
+        const main =
+          (
+            runnerModule as Record<
+              string,
+              unknown
+            >
+          )
+            .main;
+
+        expect(
+          typeof main,
+        ).toBe(
+          "function",
+        );
+      },
+    );
   },
 );
