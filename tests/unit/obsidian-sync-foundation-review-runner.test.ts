@@ -343,6 +343,97 @@ describe(
     );
 
     it(
+      "accepts a CRLF Foundation fixture and preserves CRLF output",
+      async () => {
+        const harness =
+          createHarness();
+
+        const crlfContent =
+          CURRENT_CONTENT.replace(
+            /\n/g,
+            "\r\n",
+          );
+
+        expect(
+          crlfContent.includes(
+            "\r\n",
+          ),
+        ).toBe(true);
+
+        harness
+          .readTarget
+          .mockResolvedValueOnce({
+            exists: true,
+            content: crlfContent,
+          });
+
+        const result =
+          await runFoundationReview(
+            harness.dependencies,
+          );
+
+        expect(result).toEqual({
+          FINAL_VERDICT: "PASS",
+          FAILURE_CODE: null,
+        });
+
+        expect(
+          harness
+            .executeMutationPipelineFn,
+        ).toHaveBeenCalledTimes(1);
+
+        const request =
+          harness
+            .executeMutationPipelineFn
+            .mock.calls[0]![0];
+
+        expect(
+          request.transaction.changes,
+        ).toHaveLength(1);
+
+        const proposed =
+          request
+            .transaction
+            .changes[0]
+            .proposedContent;
+
+        expect(proposed).toContain(
+          "Current Status: REVIEW\r\n",
+        );
+
+        expect(proposed).toContain(
+          "Current Foundation lifecycle state remains:\r\n\r\nREVIEW",
+        );
+
+        expect(proposed).toContain(
+          INITIAL_STATE_RECORD.replace(
+            /\n/g,
+            "\r\n",
+          ),
+        );
+
+        expect(proposed).toContain(
+          "Milestone 2: STRICT HOLD",
+        );
+
+        expect(
+          proposed.match(
+            /## State Update —/g,
+          ),
+        ).toHaveLength(1);
+
+        const withoutCrlf =
+          proposed.replace(
+            /\r\n/g,
+            "",
+          );
+
+        expect(
+          withoutCrlf.includes("\n"),
+        ).toBe(false);
+      },
+    );
+    it(
       "builds the exact authorized one-file ACTIVE to REVIEW mutation",
       async () => {
         const harness =

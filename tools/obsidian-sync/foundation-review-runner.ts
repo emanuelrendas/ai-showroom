@@ -306,10 +306,35 @@ export async function runFoundationReview(
     };
   }
 
+  const sourceNewline =
+    before.content.includes(
+      "\r\n",
+    )
+      ? "\r\n"
+      : "\n";
+
+  const currentLifecycleMarker =
+    CURRENT_LIFECYCLE_MARKER.replace(
+      /\n/g,
+      sourceNewline,
+    );
+
+  const reviewLifecycleMarker =
+    REVIEW_LIFECYCLE_MARKER.replace(
+      /\n/g,
+      sourceNewline,
+    );
+
+  const initialStateRecord =
+    INITIAL_STATE_RECORD.replace(
+      /\n/g,
+      sourceNewline,
+    );
+
   if (
     countOccurrences(
       before.content,
-      CURRENT_LIFECYCLE_MARKER,
+      currentLifecycleMarker,
     ) !== 1
   ) {
     return {
@@ -323,7 +348,7 @@ export async function runFoundationReview(
 
   if (
     !before.content.includes(
-      INITIAL_STATE_RECORD,
+      initialStateRecord,
     )
   ) {
     return {
@@ -342,8 +367,8 @@ export async function runFoundationReview(
         REVIEW_STATUS_MARKER,
       )
       .replace(
-        CURRENT_LIFECYCLE_MARKER,
-        REVIEW_LIFECYCLE_MARKER,
+        currentLifecycleMarker,
+        reviewLifecycleMarker,
       );
 
   const event =
@@ -351,10 +376,13 @@ export async function runFoundationReview(
       dependencies
         .now()
         .toISOString(),
+    ).replace(
+      /\n/g,
+      sourceNewline,
     );
 
   const proposedContent =
-    `${transitionedContent}\n\n---\n\n${event}`;
+    `${transitionedContent}${sourceNewline}${sourceNewline}---${sourceNewline}${sourceNewline}${event}`;
 
   const mutationRequest:
     MutationPipelineRequest = {
