@@ -21,13 +21,13 @@ import {
 } from "@/tools/obsidian-sync/foundation-dossier-create-runner";
 
 const BASE_SHA =
-  "37b64df88dad23a9c5fc674a4f0236c5619e5bf2";
+  "5e9884aa9ae0c16d1bab74f2c44201ff29bcf1f7";
 
 const TARGET =
   "04 - AI WORKSPACE/AI-SHOWROOM/SOL/FOUNDATION/OBSIDIAN-AI-SYNC-FOUNDATION.md";
 
 const APPROVED_DOSSIER_SHA256 =
-  "a02f803dfd733778f1f97cad2b40364fc1c68617168fde0c45ef363cd1a8eb49";
+  "d5ab9078c93d91f900d15e6365dbbb2dff04e0dcbe2bee06f490211b0f72368c";
 
 describe(
   "TASK-AS-0004 foundation dossier create runner",

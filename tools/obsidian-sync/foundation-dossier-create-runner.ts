@@ -104,7 +104,7 @@ const REMOTE =
   "https://github.com/emanuelrendas/raioc-obsidian-vault2.git" as const;
 
 const BASE_SHA =
-  "37b64df88dad23a9c5fc674a4f0236c5619e5bf2" as const;
+  "5e9884aa9ae0c16d1bab74f2c44201ff29bcf1f7" as const;
 
 const DOSSIER =
   String.raw`# Obsidian AI Sync Foundation
@@ -128,7 +128,7 @@ Canonical Foundation Artifact:
 04 - AI WORKSPACE/AI-SHOWROOM/SOL/FOUNDATION/OBSIDIAN-AI-SYNC-FOUNDATION.md
 
 Foundation Creation Base:
-37b64df88dad23a9c5fc674a4f0236c5619e5bf2
+5e9884aa9ae0c16d1bab74f2c44201ff29bcf1f7
 
 Application Baseline Anchor:
 df87a2bd96b2c22d3da1931cb1f2aec7788b1c8f
@@ -408,7 +408,7 @@ with explicit Tiago freeze authority.
 Foundation Status: ACTIVE
 Recorded By: Sol
 Creation Authority: Tiago-approved Foundation architecture
-Creation Base: 37b64df88dad23a9c5fc674a4f0236c5619e5bf2
+Creation Base: 5e9884aa9ae0c16d1bab74f2c44201ff29bcf1f7
 TASK-AS-0003: DONE
 TASK-AS-0003 Closure: 37b64df88dad23a9c5fc674a4f0236c5619e5bf2
 Application Baseline: df87a2bd96b2c22d3da1931cb1f2aec7788b1c8f
