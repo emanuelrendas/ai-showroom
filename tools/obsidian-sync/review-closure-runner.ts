@@ -11,6 +11,12 @@ import {
 } from "node:url";
 
 import {
+  createTaskClosedResult,
+  isTaskClosed,
+  type TaskClosedResult,
+} from "./closed-tasks";
+
+import {
   executeMutationPipeline,
   type MutationPipelineDecision,
   type MutationPipelineRequest,
@@ -136,8 +142,25 @@ Milestone 2: HOLD`;
 export async function runReviewClosure(
 
   dependencies:
-    ReviewClosureRunnerDependencies,
-): Promise<ReviewClosureEvidence> {
+    ReviewClosureRunnerDependencies | undefined =
+      undefined,
+): Promise<
+  ReviewClosureEvidence |
+  TaskClosedResult
+> {
+  if (
+    isTaskClosed(
+      TASK,
+    )
+  ) {
+    return createTaskClosedResult(
+      TASK,
+    );
+  }
+
+  dependencies ??=
+    createProductionReviewClosureDependencies();
+
   const arm =
     dependencies
       .environment
@@ -516,9 +539,7 @@ export function createProductionReviewClosureDependencies():
   export async function main():
   Promise<void> {
   const evidence =
-    await runReviewClosure(
-      createProductionReviewClosureDependencies(),
-    );
+    await runReviewClosure();
 
   console.log(
     JSON.stringify(
@@ -529,8 +550,12 @@ export function createProductionReviewClosureDependencies():
   );
 
   if (
+    !(
+      "FINAL_VERDICT" in
+      evidence
+    ) ||
     evidence.FINAL_VERDICT !==
-    "PASS"
+      "PASS"
   ) {
     process.exitCode =
       1;

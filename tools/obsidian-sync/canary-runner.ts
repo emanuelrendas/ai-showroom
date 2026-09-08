@@ -19,6 +19,12 @@ import {
 } from "node:url";
 
 import {
+  createTaskClosedResult,
+  isTaskClosed,
+  type TaskClosedResult,
+} from "./closed-tasks";
+
+import {
   executeMutationPipeline,
   type MutationPipelineDecision,
   type MutationPipelineRequest,
@@ -911,8 +917,25 @@ export function createProductionGateGDependencies():
 
 export async function runGateGCanary(
   dependencies:
-    GateGRunnerDependencies,
-): Promise<GateGCanaryEvidence> {
+    GateGRunnerDependencies | undefined =
+      undefined,
+): Promise<
+  GateGCanaryEvidence |
+  TaskClosedResult
+> {
+  if (
+    isTaskClosed(
+      GATE_G_TASK,
+    )
+  ) {
+    return createTaskClosedResult(
+      GATE_G_TASK,
+    );
+  }
+
+  dependencies ??=
+    createProductionGateGDependencies();
+
   const evidence =
     createInitialEvidence();
 
@@ -1661,9 +1684,23 @@ export async function runGateGCanary(
 export async function main():
   Promise<void> {
   const evidence =
-    await runGateGCanary(
-      createProductionGateGDependencies(),
+    await runGateGCanary();
+
+  if (
+    "status" in evidence
+  ) {
+    console.log(
+      JSON.stringify(
+        evidence,
+        null,
+        2,
+      ),
     );
+
+    process.exitCode = 1;
+
+    return;
+  }
 
   if (
     evidence.FINAL_VERDICT !==
