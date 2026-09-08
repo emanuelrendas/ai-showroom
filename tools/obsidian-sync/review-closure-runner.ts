@@ -1,25 +1,12 @@
 import {
-  readFile,
-} from "node:fs/promises";
-
-import {
-  resolve,
-} from "node:path";
-
-import {
-  pathToFileURL,
-} from "node:url";
-
-import {
   createTaskClosedResult,
   isTaskClosed,
   type TaskClosedResult,
 } from "./closed-tasks";
 
-import {
-  executeMutationPipeline,
-  type MutationPipelineDecision,
-  type MutationPipelineRequest,
+import type {
+  MutationPipelineDecision,
+  MutationPipelineRequest,
 } from "./mutation-pipeline";
 
 import type {
@@ -34,21 +21,9 @@ import type {
   LocalPullAdapter,
 } from "./local-pull-adapter";
 
-import {
+import type {
   executeLocalObsidianPull,
 } from "./local-pull";
-
-import {
-  NodeIsolationAdapter,
-} from "./node-isolation-adapter";
-
-import {
-  GitCliAdapter as GitCliTransactionAdapter,
-} from "./git-cli-adapter";
-
-import {
-  GitCliPullAdapter,
-} from "./git-cli-pull-adapter";
 
 export const REVIEW_CLOSURE_ARM_VALUE =
   "AUTHORIZED_BY_TIAGO" as const;
@@ -142,8 +117,7 @@ Milestone 2: HOLD`;
 export async function runReviewClosure(
 
   dependencies:
-    ReviewClosureRunnerDependencies | undefined =
-      undefined,
+    ReviewClosureRunnerDependencies,
 ): Promise<
   ReviewClosureEvidence |
   TaskClosedResult
@@ -157,9 +131,6 @@ export async function runReviewClosure(
       TASK,
     );
   }
-
-  dependencies ??=
-    createProductionReviewClosureDependencies();
 
   const arm =
     dependencies
@@ -453,126 +424,4 @@ export async function runReviewClosure(
     FAILURE_CODE:
       null,
   };
-}
-export function createProductionReviewClosureDependencies():
-  ReviewClosureRunnerDependencies {
-  const isolationAdapter =
-    new NodeIsolationAdapter();
-
-  const transactionAdapter =
-    new GitCliTransactionAdapter();
-
-  const pullAdapter =
-    new GitCliPullAdapter();
-
-  return {
-    environment:
-      process.env,
-
-    isolationAdapter,
-
-    transactionAdapter,
-
-    pullAdapter,
-    readTarget:
-      async (
-        vaultRoot,
-      ) => {
-        try {
-          return {
-            exists:
-              true,
-
-            content:
-              await readFile(
-                resolve(
-                  vaultRoot,
-                  TARGET,
-                ),
-                "utf8",
-              ),
-          };
-        } catch (
-          error
-        ) {
-          if (
-            (
-              error as NodeJS.ErrnoException
-            ).code ===
-            "ENOENT"
-          ) {
-            return {
-              exists:
-                false,
-
-              content:
-                "",
-            };
-          }
-
-          throw error;
-        }
-      },
-
-    now:
-      () =>
-        new Date(),
-
-    executeMutationPipelineFn:
-      async (
-        request,
-      ) =>
-        executeMutationPipeline(
-          request,
-          {
-            isolationAdapter,
-
-            gitAdapter:
-              transactionAdapter,
-          },
-        ),
-
-    executeLocalObsidianPullFn:
-      executeLocalObsidianPull,
-        };
-}
-  export async function main():
-  Promise<void> {
-  const evidence =
-    await runReviewClosure();
-
-  console.log(
-    JSON.stringify(
-      evidence,
-      null,
-      2,
-    ),
-  );
-
-  if (
-    !(
-      "FINAL_VERDICT" in
-      evidence
-    ) ||
-    evidence.FINAL_VERDICT !==
-      "PASS"
-  ) {
-    process.exitCode =
-      1;
-  }
-}
-
-const entry =
-  process.argv[1];
-
-if (
-  entry &&
-  pathToFileURL(
-    resolve(
-      entry,
-    ),
-  ).href ===
-    import.meta.url
-) {
-  void main();
 }
