@@ -1,54 +1,22 @@
 import {
-  execFile,
-} from "node:child_process";
-
-import {
-  createHash,
-} from "node:crypto";
-
-import {
-  readFile,
-} from "node:fs/promises";
-
-import {
-  resolve,
-} from "node:path";
-
-import {
-  pathToFileURL,
-} from "node:url";
-
-import {
   createTaskClosedResult,
   isTaskClosed,
   type TaskClosedResult,
 } from "./closed-tasks";
 
-import {
+import type {
   executeMutationPipeline,
-  type MutationPipelineDecision,
-  type MutationPipelineRequest,
+  MutationPipelineDecision,
+  MutationPipelineRequest,
 } from "./mutation-pipeline";
 
-import {
+import type {
   executeLocalObsidianPull,
 } from "./local-pull";
 
-import {
+import type {
   verifyIsolation,
 } from "./isolation-gate";
-
-import {
-  NodeIsolationAdapter,
-} from "./node-isolation-adapter";
-
-import {
-  GitCliAdapter as GitCliTransactionAdapter,
-} from "./git-cli-adapter";
-
-import {
-  GitCliPullAdapter,
-} from "./git-cli-pull-adapter";
 
 import type {
   GitAdapter,
@@ -90,9 +58,6 @@ export const GATE_G_ARM_VALUE =
 
 const FULL_SHA_PATTERN =
   /^[0-9a-f]{40}$/;
-
-const STATE_EVENT_PATTERN =
-  /^## State (?:Update|Correction) — /gm;
 
 export type GateGCanaryEvidence = {
   APPLICATION_SHA:
@@ -471,26 +436,6 @@ function assertEnvironmentContract(
   };
 }
 
-function sha256(
-  value: Buffer,
-): string {
-  return createHash(
-    "sha256",
-  )
-    .update(value)
-    .digest("hex");
-}
-
-function countStateEvents(
-  content: string,
-): number {
-  return (
-    content.match(
-      STATE_EVENT_PATTERN,
-    ) ?? []
-  ).length;
-}
-
 export function buildGateGCanaryEvent(
   timestamp: string,
   applicationSha: string,
@@ -666,259 +611,9 @@ function splitNulPaths(
     );
 }
 
-async function productionReadOnlyGit(
-  cwd: string,
-  args: readonly string[],
-): Promise<string> {
-  const permitted =
-    new Set([
-      "rev-parse",
-      "status",
-      "diff",
-      "rev-list",
-    ]);
-
-  const command =
-    args[0];
-
-  if (
-    !command ||
-    !permitted.has(
-      command,
-    )
-  ) {
-    throw new Error(
-      "Forbidden Git command in Gate G forensic reader",
-    );
-  }
-
-  return new Promise(
-    (
-      resolvePromise,
-      reject,
-    ) => {
-      execFile(
-        "git",
-        [...args],
-        {
-          cwd,
-          encoding:
-            "utf8",
-          windowsHide:
-            true,
-        },
-        (
-          error,
-          stdout,
-        ) => {
-          if (error) {
-            reject(
-              new Error(
-                `Read-only Git inspection failed: ${command}`,
-              ),
-            );
-
-            return;
-          }
-
-          resolvePromise(
-            stdout,
-          );
-        },
-      );
-    },
-  );
-}
-
-async function productionApplicationState():
-  Promise<ApplicationState> {
-  const repoRoot =
-    (
-      await productionReadOnlyGit(
-        process.cwd(),
-        [
-          "rev-parse",
-          "--show-toplevel",
-        ],
-      )
-    ).trim();
-
-  const head =
-    (
-      await productionReadOnlyGit(
-        repoRoot,
-        [
-          "rev-parse",
-          "HEAD",
-        ],
-      )
-    ).trim();
-
-  const status =
-    await productionReadOnlyGit(
-      repoRoot,
-      [
-        "status",
-        "--porcelain=v1",
-        "--untracked-files=all",
-      ],
-    );
-
-  return {
-    repoRoot,
-    head,
-    clean:
-      status.length === 0,
-  };
-}
-
-async function productionTargetSnapshot(
-  vaultRoot: string,
-): Promise<TargetSnapshot> {
-  const fullPath =
-    resolve(
-      vaultRoot,
-      ...GATE_G_TARGET
-        .split("/"),
-    );
-
-  let buffer:
-    Buffer;
-
-  try {
-    buffer =
-      await readFile(
-        fullPath,
-      );
-  } catch (
-    error: unknown
-  ) {
-    if (
-      typeof error ===
-        "object" &&
-      error !== null &&
-      "code" in error &&
-      error.code ===
-        "ENOENT"
-    ) {
-      return {
-        exists:
-          false,
-        content:
-          "",
-        sha256:
-          null,
-        stateEventCount:
-          0,
-      };
-    }
-
-    throw error;
-  }
-
-  const content =
-    buffer.toString(
-      "utf8",
-    );
-
-  if (
-    !Buffer
-      .from(
-        content,
-        "utf8",
-      )
-      .equals(
-        buffer,
-      )
-  ) {
-    hold(
-      "TARGET_NOT_UTF8",
-    );
-  }
-
-  return {
-    exists:
-      true,
-
-    content,
-
-    sha256:
-      sha256(
-        buffer,
-      ),
-
-    stateEventCount:
-      countStateEvents(
-        content,
-      ),
-  };
-}
-
-function productionEvidenceEmitter(
-  evidence:
-    GateGCanaryEvidence,
-): void {
-  console.log(
-    JSON.stringify(
-      evidence,
-      null,
-      2,
-    ),
-  );
-}
-
-export function createProductionGateGDependencies():
-  GateGRunnerDependencies {
-  const isolationAdapter =
-    new NodeIsolationAdapter();
-
-  const transactionAdapter =
-    new GitCliTransactionAdapter();
-
-  const pullAdapter =
-    new GitCliPullAdapter();
-
-  return {
-    environment:
-      process.env,
-
-    isolationAdapter,
-
-    transactionAdapter,
-
-    pullAdapter,
-
-    verifyIsolationFn:
-      verifyIsolation,
-
-    executeMutationPipelineFn:
-      executeMutationPipeline,
-
-    executeLocalObsidianPullFn:
-      executeLocalObsidianPull,
-
-    getApplicationState:
-      productionApplicationState,
-
-    readTarget:
-      productionTargetSnapshot,
-
-    readOnlyGit:
-      productionReadOnlyGit,
-
-    now:
-      () =>
-        new Date(),
-
-    emitEvidence:
-      productionEvidenceEmitter,
-  };
-}
-
 export async function runGateGCanary(
   dependencies:
-    GateGRunnerDependencies | undefined =
-      undefined,
+    GateGRunnerDependencies,
 ): Promise<
   GateGCanaryEvidence |
   TaskClosedResult
@@ -932,9 +627,6 @@ export async function runGateGCanary(
       GATE_G_TASK,
     );
   }
-
-  dependencies ??=
-    createProductionGateGDependencies();
 
   const evidence =
     createInitialEvidence();
@@ -1679,46 +1371,4 @@ export async function runGateGCanary(
         evidence,
       );
   }
-}
-
-export async function main():
-  Promise<void> {
-  const evidence =
-    await runGateGCanary();
-
-  if (
-    "status" in evidence
-  ) {
-    console.log(
-      JSON.stringify(
-        evidence,
-        null,
-        2,
-      ),
-    );
-
-    process.exitCode = 1;
-
-    return;
-  }
-
-  if (
-    evidence.FINAL_VERDICT !==
-    "PASS"
-  ) {
-    process.exitCode = 1;
-  }
-}
-
-const entry =
-  process.argv[1];
-
-if (
-  entry &&
-  pathToFileURL(
-    resolve(entry),
-  ).href ===
-    import.meta.url
-) {
-  void main();
 }
