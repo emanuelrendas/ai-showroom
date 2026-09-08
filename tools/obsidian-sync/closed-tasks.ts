@@ -3,7 +3,9 @@ export type ClosedTask =
 
 export const CLOSED_TASKS:
   readonly ClosedTask[] =
-  Object.freeze([]);
+  Object.freeze([
+    "TASK-AS-0003",
+  ]);
 
 export type TaskClosedResult = {
   readonly status:

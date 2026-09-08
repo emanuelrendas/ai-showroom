@@ -2,12 +2,57 @@ import {
   describe,
   expect,
   it,
+  vi,
 } from "vitest";
+
+vi.mock(
+  "@/tools/obsidian-sync/closed-tasks",
+  () => ({
+    isTaskClosed:
+      () => false,
+
+    createTaskClosedResult:
+      (task: string) => ({
+        status:
+          "TASK_CLOSED",
+
+        task,
+      }),
+  }),
+);
 
 import {
   REVIEW_CLOSURE_ARM_VALUE,
   runReviewClosure,
 } from "@/tools/obsidian-sync/review-closure-runner";
+
+async function runOperationalReviewClosure(
+  dependencies:
+    Parameters<
+      typeof runReviewClosure
+    >[0],
+) {
+  if (!dependencies) {
+    throw new Error(
+      "Expected injected review-closure dependencies",
+    );
+  }
+
+  const result =
+    await runReviewClosure(
+      dependencies,
+    );
+
+  if (
+    "status" in result
+  ) {
+    throw new Error(
+      "Expected operational review-closure evidence",
+    );
+  }
+
+  return result;
+}
 
 const BASE =
   "c0ff49eba3e7536933663d21e6e0ac1bf0e423a0";
@@ -37,7 +82,7 @@ describe(
           0;
 
         const evidence =
-          await runReviewClosure({
+          await runOperationalReviewClosure({
             environment: {
               AI_SHOWROOM_VAULT_PATH:
                 VAULT_ROOT,
@@ -98,7 +143,7 @@ describe(
         let capturedRequest:
           unknown = null;
 
-        await runReviewClosure({
+        await runOperationalReviewClosure({
           environment: {
             AI_SHOWROOM_VAULT_PATH:
               VAULT_ROOT,
@@ -274,7 +319,7 @@ describe(
           0;
 
         const evidence =
-          await runReviewClosure({
+          await runOperationalReviewClosure({
             environment: {
               AI_SHOWROOM_VAULT_PATH:
                 VAULT_ROOT,
@@ -353,7 +398,7 @@ describe(
           0;
 
         const evidence =
-          await runReviewClosure({
+          await runOperationalReviewClosure({
             environment: {
               AI_SHOWROOM_VAULT_PATH:
                 VAULT_ROOT,
@@ -445,7 +490,7 @@ describe(
           0;
 
         const evidence =
-          await runReviewClosure({
+          await runOperationalReviewClosure({
             environment: {
               AI_SHOWROOM_VAULT_PATH:
                 VAULT_ROOT,
@@ -533,7 +578,7 @@ describe(
           0;
 
         const evidence =
-          await runReviewClosure({
+          await runOperationalReviewClosure({
             environment: {
               AI_SHOWROOM_VAULT_PATH:
                 VAULT_ROOT,
@@ -607,7 +652,7 @@ describe(
       "returns HOLD when Gate F rejects after a successful mutation",
       async () => {
         const evidence =
-          await runReviewClosure({
+          await runOperationalReviewClosure({
             environment: {
               AI_SHOWROOM_VAULT_PATH:
                 VAULT_ROOT,
@@ -679,7 +724,7 @@ describe(
       "returns HOLD when Gate F does not fast-forward after a successful mutation",
       async () => {
         const evidence =
-          await runReviewClosure({
+          await runOperationalReviewClosure({
             environment: {
               AI_SHOWROOM_VAULT_PATH:
                 VAULT_ROOT,

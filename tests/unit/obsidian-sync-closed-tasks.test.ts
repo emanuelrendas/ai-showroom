@@ -27,7 +27,12 @@ const EXPECTED_CLOSED_RESULT = {
 } as const;
 
 type DependencySpy =
-  ReturnType<typeof vi.fn>;
+  ReturnType<
+    typeof vi.fn<
+      (...args: unknown[]) =>
+        never
+    >
+  >;
 
 type NamedDependencySpy =
   readonly [string, DependencySpy];

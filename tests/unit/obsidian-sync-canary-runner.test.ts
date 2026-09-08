@@ -2,7 +2,24 @@ import {
   describe,
   expect,
   it,
+  vi,
 } from "vitest";
+
+vi.mock(
+  "@/tools/obsidian-sync/closed-tasks",
+  () => ({
+    isTaskClosed:
+      () => false,
+
+    createTaskClosedResult:
+      (task: string) => ({
+        status:
+          "TASK_CLOSED",
+
+        task,
+      }),
+  }),
+);
 
 import {
   buildGateGCanaryEvent,
@@ -39,6 +56,28 @@ import type {
 import type {
   MutationPipelineDecision,
 } from "@/tools/obsidian-sync/mutation-pipeline";
+
+async function runOperationalGateGCanary(
+  dependencies:
+    NonNullable<Parameters<
+      typeof runGateGCanary
+    >[0]>,
+) {
+  const result =
+    await runGateGCanary(
+      dependencies,
+    );
+
+  if (
+    "status" in result
+  ) {
+    throw new Error(
+      "Expected operational canary evidence",
+    );
+  }
+
+  return result;
+}
 
 const APP_SHA =
   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
@@ -326,7 +365,7 @@ describe(
           0;
 
         const evidence =
-          await runGateGCanary({
+          await runOperationalGateGCanary({
             environment: {
               AI_SHOWROOM_VAULT_PATH:
                 GATE_G_VAULT_ROOT,
@@ -536,7 +575,7 @@ describe(
         };
 
         const evidence =
-          await runGateGCanary({
+          await runOperationalGateGCanary({
             environment: {
               AI_SHOWROOM_VAULT_PATH:
                 GATE_G_VAULT_ROOT,
@@ -831,7 +870,7 @@ describe(
           0;
 
         const evidence =
-          await runGateGCanary({
+          await runOperationalGateGCanary({
             environment: {
               AI_SHOWROOM_VAULT_PATH:
                 GATE_G_VAULT_ROOT,
