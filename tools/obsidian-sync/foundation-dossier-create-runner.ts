@@ -260,6 +260,15 @@ Status: COMPLETE
 Invariant:
 Flash has zero write authority.
 
+Classification:
+FLASH_READ_ONLY is an application-level authorization invariant and defense-in-depth control. It does not claim that validateVaultMutation() creates OS, filesystem, or Git isolation.
+
+FIND-AS-002 Capability Boundary:
+Gemini Flash is authorized for REMOTE WEB EXECUTION ONLY, with no local Windows execution, Gemini CLI or local process, linked-device capability, local shell, mounted local filesystem or Vault, Git Credential Manager access, GitHub write credential, or direct repository mutation capability.
+
+Invalidation:
+If Flash is later given Gemini CLI or local execution, linked-device access, local shell, filesystem or Vault access, Git or GCM access, GitHub credentials, or equivalent direct repository capability, FIND-AS-002 must reopen at P1 before that topology is authorized.
+
 Evidence Anchor:
 54aaaf9705334853139ce867a49e363064afd670
 

@@ -27,7 +27,7 @@ const TARGET =
   "04 - AI WORKSPACE/AI-SHOWROOM/SOL/FOUNDATION/OBSIDIAN-AI-SYNC-FOUNDATION.md";
 
 const APPROVED_DOSSIER_SHA256 =
-  "d5ab9078c93d91f900d15e6365dbbb2dff04e0dcbe2bee06f490211b0f72368c";
+  "f6f5620ceb6225cb37cd474c08a35c7afff1af41463dd032576cb677da6d6aff";
 
 describe(
   "TASK-AS-0004 foundation dossier create runner",
