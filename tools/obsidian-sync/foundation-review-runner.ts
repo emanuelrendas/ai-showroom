@@ -118,6 +118,17 @@ export type FoundationReviewDependencies = {
   applicationRepoPath?:
     string;
 
+  // FIND-AS-001 / Option A1: the application SHA Emanuel has explicitly
+  // authorized for THIS execution of the Foundation Review, and only this
+  // execution. Supplied per run by the caller (see main()'s CLI argument
+  // parsing below); never hardcoded, never defaulted, never derived from
+  // HEAD, never cached from a previous run. Missing or malformed values
+  // are enforced by runApplicationPreflight itself (this dependency is
+  // passed straight through, unchanged), so a bare `undefined` here fails
+  // closed rather than being silently substituted.
+  authorizedApplicationSha?:
+    string | null;
+
   executeLocalObsidianPullFn?:
     (
       pullRequest:
@@ -162,12 +173,11 @@ const CREATION_RUNNER_APPLICATION_SHA =
 const CANONICAL_APPLICATION_BASELINE =
   "df87a2bd96b2c22d3da1931cb1f2aec7788b1c8f" as const;
 
-// FIND-AS-001: authorized live application checkout this runner must
-// independently verify before certifying anything. Fixed, not derived
-// from whatever HEAD happens to be at runtime.
-const APPLICATION_EXPECTED_SHA =
-  "279dd001c971f93036bac472b10669033311e24c" as const;
-
+// FIND-AS-001 / Option A1: the live application checkout this runner
+// verifies is always emanuelrendas/ai-showroom on this branch. This is
+// structural identity, not a per-run authorization value, so it stays a
+// fixed constant. The SHA that identity's HEAD must match is NOT fixed
+// here — see `authorizedApplicationSha` on FoundationReviewDependencies.
 const APPLICATION_BRANCH =
   "feature/milestone-1-foundation" as const;
 
@@ -274,8 +284,12 @@ export async function runFoundationReview(
   const applicationPreflightResult =
     await dependencies.applicationPreflightFn(
       {
+        // FIND-AS-001 / Option A1: passed through exactly as supplied for
+        // this execution. Never a hardcoded constant, never derived from
+        // HEAD. runApplicationPreflight fails closed on undefined/null/
+        // malformed on its own; this call site does not pre-judge it.
         expectedApplicationSha:
-          APPLICATION_EXPECTED_SHA,
+          dependencies.authorizedApplicationSha,
 
         repoPath:
           dependencies.applicationRepoPath ??
@@ -750,6 +764,13 @@ export function createProductionFoundationReviewDependencies():
     applicationRepoPath:
       process.cwd(),
 
+    // FIND-AS-001 / Option A1: deliberately absent. No default, no
+    // fallback, no historical SHA baked in here. main() below is
+    // responsible for supplying `authorizedApplicationSha` explicitly,
+    // per execution, from a source outside this factory (a CLI
+    // argument). A bare call to this factory therefore fails closed on
+    // the application preflight, by design.
+
     readTarget:
       async (
         vaultRoot,
@@ -824,12 +845,45 @@ export function createProductionFoundationReviewDependencies():
   };
 }
 
+// FIND-AS-001 / Option A1: the only sanctioned per-execution source for
+// the authorized application SHA is an explicit CLI argument supplied to
+// this exact invocation, e.g.
+//   tsx foundation-review-runner.ts --authorized-application-sha=<sha>
+// Nothing here reads an environment variable, a config file, or any
+// value left over from a previous run; a run with no matching argument
+// yields `undefined`, which runApplicationPreflight then fails closed on.
+const AUTHORIZED_APPLICATION_SHA_FLAG =
+  "--authorized-application-sha=" as const;
+
+export function readAuthorizedApplicationShaFromArgv(
+  argv: readonly string[],
+): string | undefined {
+  const flag =
+    argv.find(
+      (arg) =>
+        arg.startsWith(
+          AUTHORIZED_APPLICATION_SHA_FLAG,
+        ),
+    );
+
+  return flag
+    ? flag.slice(
+        AUTHORIZED_APPLICATION_SHA_FLAG.length,
+      )
+    : undefined;
+}
+
 export async function main():
   Promise<void> {
   const evidence =
-    await runFoundationReview(
-      createProductionFoundationReviewDependencies(),
-    );
+    await runFoundationReview({
+      ...createProductionFoundationReviewDependencies(),
+
+      authorizedApplicationSha:
+        readAuthorizedApplicationShaFromArgv(
+          process.argv.slice(2),
+        ),
+    });
 
   console.log(
     JSON.stringify(
