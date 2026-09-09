@@ -11,8 +11,9 @@ import {
   type FoundationReviewDependencies,
 } from "../../tools/obsidian-sync/foundation-review-runner";
 
-import type {
-  ApplicationPreflightGitAdapter,
+import {
+  runApplicationPreflight,
+  type ApplicationPreflightGitAdapter,
 } from "../../tools/obsidian-sync/application-preflight";
 
 const BASE_SHA =
@@ -171,6 +172,13 @@ function createHarness() {
 
     applicationGitAdapter,
     applicationPreflightFn,
+
+    // FIND-AS-001 / A1: per-execution authorized SHA, plain test fixture
+    // data threaded through the (mocked, by default) applicationPreflightFn
+    // above. Individual tests below override this to prove the runner
+    // never substitutes anything else for it.
+    authorizedApplicationSha:
+      "279dd001c971f93036bac472b10669033311e24c",
 
     executeMutationPipelineFn,
     executeLocalObsidianPullFn,
@@ -864,6 +872,269 @@ describe(
         expect(
           dependencies.applicationPreflightFn,
         ).toBeTypeOf("function");
+
+        // FIND-AS-001 / A1 (RED-2): the production factory must carry NO
+        // default, fallback, or historical authorized application SHA.
+        // A bare call to this factory must fail closed on the
+        // application preflight, not silently pass with 279dd001....
+        expect(
+          dependencies.authorizedApplicationSha,
+        ).toBeUndefined();
+      },
+    );
+  },
+);
+
+describe(
+  "FIND-AS-001 / Option A1 — per-execution authorized application SHA (RED-2)",
+  () => {
+    const LIVE_HEAD_A =
+      "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+
+    const LIVE_HEAD_B =
+      "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+
+    function realApplicationGitAdapter(
+      overrides: Partial<ApplicationPreflightGitAdapter> = {},
+    ): ApplicationPreflightGitAdapter {
+      return {
+        isClean:
+          vi.fn(
+            async () =>
+              true,
+          ),
+
+        getLocalHead:
+          vi.fn(
+            async () =>
+              LIVE_HEAD_A,
+          ),
+
+        getRemoteUrl:
+          vi.fn(
+            async () =>
+              "https://github.com/emanuelrendas/ai-showroom.git",
+          ),
+
+        ...overrides,
+      };
+    }
+
+    it(
+      "holds and never reaches the mutation pipeline when no per-execution authorized SHA is supplied",
+      async () => {
+        const harness =
+          createHarness();
+
+        harness.dependencies.applicationPreflightFn =
+          runApplicationPreflight;
+
+        harness.dependencies.applicationGitAdapter =
+          realApplicationGitAdapter();
+
+        harness.dependencies.authorizedApplicationSha =
+          undefined;
+
+        const result =
+          await runFoundationReview(
+            harness.dependencies,
+          );
+
+        expect(result).toEqual({
+          FINAL_VERDICT: "HOLD",
+          FAILURE_CODE:
+            "APPLICATION_PREFLIGHT_SHA_MISSING",
+        });
+
+        expect(
+          harness
+            .executeMutationPipelineFn,
+        ).not.toHaveBeenCalled();
+      },
+    );
+
+    it(
+      "holds and never reaches the mutation pipeline when the per-execution authorized SHA is malformed",
+      async () => {
+        const harness =
+          createHarness();
+
+        harness.dependencies.applicationPreflightFn =
+          runApplicationPreflight;
+
+        harness.dependencies.applicationGitAdapter =
+          realApplicationGitAdapter();
+
+        harness.dependencies.authorizedApplicationSha =
+          "279dd00";
+
+        const result =
+          await runFoundationReview(
+            harness.dependencies,
+          );
+
+        expect(result).toEqual({
+          FINAL_VERDICT: "HOLD",
+          FAILURE_CODE:
+            "APPLICATION_PREFLIGHT_SHA_MALFORMED",
+        });
+
+        expect(
+          harness
+            .executeMutationPipelineFn,
+        ).not.toHaveBeenCalled();
+      },
+    );
+
+    it(
+      "passes the application preflight and reaches the mutation pipeline when the authorized SHA exactly matches live HEAD (authority A / HEAD A)",
+      async () => {
+        const harness =
+          createHarness();
+
+        harness.dependencies.applicationPreflightFn =
+          runApplicationPreflight;
+
+        harness.dependencies.applicationGitAdapter =
+          realApplicationGitAdapter({
+            getLocalHead:
+              vi.fn(
+                async () =>
+                  LIVE_HEAD_A,
+              ),
+          });
+
+        harness.dependencies.authorizedApplicationSha =
+          LIVE_HEAD_A;
+
+        const result =
+          await runFoundationReview(
+            harness.dependencies,
+          );
+
+        expect(result).toEqual({
+          FINAL_VERDICT: "PASS",
+          FAILURE_CODE: null,
+        });
+
+        expect(
+          harness
+            .executeMutationPipelineFn,
+        ).toHaveBeenCalledTimes(1);
+      },
+    );
+
+    it(
+      "holds with APPLICATION_PREFLIGHT_HEAD_MISMATCH and blocks the mutation pipeline when the authorized SHA does not match live HEAD (authority A / HEAD B)",
+      async () => {
+        const harness =
+          createHarness();
+
+        harness.dependencies.applicationPreflightFn =
+          runApplicationPreflight;
+
+        harness.dependencies.applicationGitAdapter =
+          realApplicationGitAdapter({
+            getLocalHead:
+              vi.fn(
+                async () =>
+                  LIVE_HEAD_B,
+              ),
+          });
+
+        harness.dependencies.authorizedApplicationSha =
+          LIVE_HEAD_A;
+
+        const result =
+          await runFoundationReview(
+            harness.dependencies,
+          );
+
+        expect(result).toEqual({
+          FINAL_VERDICT: "HOLD",
+          FAILURE_CODE:
+            "APPLICATION_PREFLIGHT_HEAD_MISMATCH",
+        });
+
+        expect(
+          harness
+            .executeMutationPipelineFn,
+        ).not.toHaveBeenCalled();
+      },
+    );
+
+    it(
+      "a second, independent execution authorized against a different SHA and a different live HEAD also passes, without any source change (authority B / HEAD B)",
+      async () => {
+        const harness =
+          createHarness();
+
+        harness.dependencies.applicationPreflightFn =
+          runApplicationPreflight;
+
+        harness.dependencies.applicationGitAdapter =
+          realApplicationGitAdapter({
+            getLocalHead:
+              vi.fn(
+                async () =>
+                  LIVE_HEAD_B,
+              ),
+          });
+
+        harness.dependencies.authorizedApplicationSha =
+          LIVE_HEAD_B;
+
+        const result =
+          await runFoundationReview(
+            harness.dependencies,
+          );
+
+        expect(result).toEqual({
+          FINAL_VERDICT: "PASS",
+          FAILURE_CODE: null,
+        });
+
+        expect(
+          harness
+            .executeMutationPipelineFn,
+        ).toHaveBeenCalledTimes(1);
+      },
+    );
+
+    it(
+      "threads the exact per-execution authorized SHA into the preflight request, never substituting the historical FIND-AS-001 SHA or any other value",
+      async () => {
+        const harness =
+          createHarness();
+
+        harness.dependencies.authorizedApplicationSha =
+          undefined;
+
+        await runFoundationReview(
+          harness.dependencies,
+        );
+
+        expect(
+          harness
+            .applicationPreflightFn,
+        ).toHaveBeenCalledTimes(1);
+
+        const [
+          request,
+        ] =
+          harness
+            .applicationPreflightFn
+            .mock.calls[0]!;
+
+        expect(
+          request.expectedApplicationSha,
+        ).toBeUndefined();
+
+        expect(
+          request.expectedApplicationSha,
+        ).not.toBe(
+          "279dd001c971f93036bac472b10669033311e24c",
+        );
       },
     );
   },
