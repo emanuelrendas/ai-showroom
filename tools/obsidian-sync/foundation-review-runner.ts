@@ -284,28 +284,51 @@ export async function runFoundationReview(
     };
   }
 
-  const applicationPreflightResult =
-    await dependencies.applicationPreflightFn(
-      {
-        // FIND-AS-001 / Option A1: passed through exactly as supplied for
-        // this execution. Never a hardcoded constant, never derived from
-        // HEAD. runApplicationPreflight fails closed on undefined/null/
-        // malformed on its own; this call site does not pre-judge it.
-        expectedApplicationSha:
-          dependencies.authorizedApplicationSha,
+  // FIND-AS-001 (independent review, blocker 3): applicationPreflightFn
+  // is dependency-injected. The production implementation
+  // (runApplicationPreflight) already fails closed on its own Git
+  // inspection failures, but this call site cannot assume that of every
+  // implementation it might ever be given — a custom, test, or future
+  // implementation that throws directly must not be able to crash this
+  // function and bypass structured evidence. This is a second,
+  // independent exception boundary: it wraps only this one invocation,
+  // not the vault or mutation-pipeline logic below.
+  let applicationPreflightResult:
+    ApplicationPreflightResult;
 
-        repoPath:
-          dependencies.applicationRepoPath ??
-          process.cwd(),
+  try {
+    applicationPreflightResult =
+      await dependencies.applicationPreflightFn(
+        {
+          // FIND-AS-001 / Option A1: passed through exactly as supplied
+          // for this execution. Never a hardcoded constant, never
+          // derived from HEAD. runApplicationPreflight fails closed on
+          // undefined/null/malformed on its own; this call site does
+          // not pre-judge it.
+          expectedApplicationSha:
+            dependencies.authorizedApplicationSha,
 
-        expectedOwner:
-          APPLICATION_OWNER,
+          repoPath:
+            dependencies.applicationRepoPath ??
+            process.cwd(),
 
-        expectedRepo:
-          APPLICATION_REPO,
-      },
-      dependencies.applicationGitAdapter,
-    );
+          expectedOwner:
+            APPLICATION_OWNER,
+
+          expectedRepo:
+            APPLICATION_REPO,
+        },
+        dependencies.applicationGitAdapter,
+      );
+  } catch {
+    return {
+      FINAL_VERDICT:
+        "HOLD",
+
+      FAILURE_CODE:
+        "APPLICATION_PREFLIGHT_EXECUTION_ERROR",
+    };
+  }
 
   if (
     !applicationPreflightResult.ok
