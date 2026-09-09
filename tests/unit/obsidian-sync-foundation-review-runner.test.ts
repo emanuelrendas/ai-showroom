@@ -1213,3 +1213,182 @@ describe(
     );
   },
 );
+
+// FIND-AS-001 independent review, blocker 3 (RED-4): two independent
+// fail-closed boundaries.
+//
+// Layer 1 (proven against the REAL runApplicationPreflight): a Git
+// inspection failure inside the preflight itself must resolve to a
+// normal HOLD/APPLICATION_PREFLIGHT_GIT_ERROR result, not an unhandled
+// exception that reaches runFoundationReview.
+//
+// Layer 2 (proven independently of Layer 1, via an injected
+// applicationPreflightFn that throws directly): even if a
+// dependency-injected preflight implementation itself misbehaves and
+// throws — bypassing whatever Layer 1 does — runFoundationReview must
+// still fail closed with HOLD/APPLICATION_PREFLIGHT_EXECUTION_ERROR,
+// never let the exception propagate, and never invoke the mutation
+// pipeline.
+describe(
+  "FIND-AS-001 independent review, blocker 3 — fail-closed Git/preflight exception handling (RED-4)",
+  () => {
+    function realApplicationGitAdapterWithFailure(
+      overrides: Partial<ApplicationPreflightGitAdapter>,
+    ): ApplicationPreflightGitAdapter {
+      return {
+        isClean: vi.fn(async () => true),
+
+        getCurrentHead: vi.fn(
+          async () =>
+            "279dd001c971f93036bac472b10669033311e24c",
+        ),
+
+        getRemoteUrl: vi.fn(
+          async () =>
+            "https://github.com/emanuelrendas/ai-showroom.git",
+        ),
+
+        ...overrides,
+      };
+    }
+
+    it(
+      "holds with APPLICATION_PREFLIGHT_GIT_ERROR and blocks the mutation pipeline when the REAL preflight's getRemoteUrl rejects",
+      async () => {
+        const harness = createHarness();
+
+        harness.dependencies.applicationPreflightFn =
+          runApplicationPreflight;
+
+        harness.dependencies.applicationGitAdapter =
+          realApplicationGitAdapterWithFailure({
+            getRemoteUrl: vi.fn(async () => {
+              throw new Error("git: origin remote not found");
+            }),
+          });
+
+        const result = await runFoundationReview(
+          harness.dependencies,
+        );
+
+        expect(result).toEqual({
+          FINAL_VERDICT: "HOLD",
+          FAILURE_CODE: "APPLICATION_PREFLIGHT_GIT_ERROR",
+        });
+
+        expect(
+          harness.executeMutationPipelineFn,
+        ).not.toHaveBeenCalled();
+      },
+    );
+
+    it(
+      "holds with APPLICATION_PREFLIGHT_GIT_ERROR and blocks the mutation pipeline when the REAL preflight's isClean rejects",
+      async () => {
+        const harness = createHarness();
+
+        harness.dependencies.applicationPreflightFn =
+          runApplicationPreflight;
+
+        harness.dependencies.applicationGitAdapter =
+          realApplicationGitAdapterWithFailure({
+            isClean: vi.fn(async () => {
+              throw new Error("git: status command failed");
+            }),
+          });
+
+        const result = await runFoundationReview(
+          harness.dependencies,
+        );
+
+        expect(result).toEqual({
+          FINAL_VERDICT: "HOLD",
+          FAILURE_CODE: "APPLICATION_PREFLIGHT_GIT_ERROR",
+        });
+
+        expect(
+          harness.executeMutationPipelineFn,
+        ).not.toHaveBeenCalled();
+      },
+    );
+
+    it(
+      "holds with APPLICATION_PREFLIGHT_GIT_ERROR and blocks the mutation pipeline when the REAL preflight's getCurrentHead rejects",
+      async () => {
+        const harness = createHarness();
+
+        harness.dependencies.applicationPreflightFn =
+          runApplicationPreflight;
+
+        harness.dependencies.applicationGitAdapter =
+          realApplicationGitAdapterWithFailure({
+            getCurrentHead: vi.fn(async () => {
+              throw new Error("git: rev-parse HEAD failed");
+            }),
+          });
+
+        const result = await runFoundationReview(
+          harness.dependencies,
+        );
+
+        expect(result).toEqual({
+          FINAL_VERDICT: "HOLD",
+          FAILURE_CODE: "APPLICATION_PREFLIGHT_GIT_ERROR",
+        });
+
+        expect(
+          harness.executeMutationPipelineFn,
+        ).not.toHaveBeenCalled();
+      },
+    );
+
+    it(
+      "holds with APPLICATION_PREFLIGHT_EXECUTION_ERROR and blocks the mutation pipeline when the injected applicationPreflightFn itself throws unexpectedly",
+      async () => {
+        const harness = createHarness();
+
+        harness.applicationPreflightFn.mockImplementationOnce(
+          async () => {
+            throw new Error(
+              "unexpected crash inside a custom preflight implementation",
+            );
+          },
+        );
+
+        const result = await runFoundationReview(
+          harness.dependencies,
+        );
+
+        expect(result).toEqual({
+          FINAL_VERDICT: "HOLD",
+          FAILURE_CODE:
+            "APPLICATION_PREFLIGHT_EXECUTION_ERROR",
+        });
+
+        expect(
+          harness.executeMutationPipelineFn,
+        ).not.toHaveBeenCalled();
+      },
+    );
+
+    it(
+      "the existing successful preflight path is unaffected by the new exception boundary",
+      async () => {
+        const harness = createHarness();
+
+        const result = await runFoundationReview(
+          harness.dependencies,
+        );
+
+        expect(result).toEqual({
+          FINAL_VERDICT: "PASS",
+          FAILURE_CODE: null,
+        });
+
+        expect(
+          harness.executeMutationPipelineFn,
+        ).toHaveBeenCalledTimes(1);
+      },
+    );
+  },
+);

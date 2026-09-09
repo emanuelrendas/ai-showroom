@@ -438,3 +438,131 @@ describe(
     );
   },
 );
+
+// FIND-AS-001 independent review, blocker 3 (RED-4): a rejection thrown
+// by any of the Git inspection operations (getRemoteUrl, isClean,
+// getCurrentHead) must not escape runApplicationPreflight as an
+// unhandled exception. An infrastructure inspection failure — origin
+// missing, git unavailable, a timed-out or killed process — is not the
+// same event as "the checkout doesn't match", but it must still resolve
+// to the same shape of deterministic, fail-closed evidence: a normal
+// ApplicationPreflightResult with ok:false and a fixed code, never a
+// thrown error, never raw exception text as authority evidence.
+describe(
+  "FIND-AS-001 independent review, blocker 3 — Git inspection failures fail closed (RED-4)",
+  () => {
+    it(
+      "converts a getRemoteUrl rejection into APPLICATION_PREFLIGHT_GIT_ERROR and does not proceed to later Git checks",
+      async () => {
+        const adapter = createAdapter({
+          getRemoteUrl: vi.fn(async () => {
+            throw new Error("git: origin remote not found");
+          }),
+        });
+
+        const result = await runApplicationPreflight(
+          baseRequest(),
+          adapter,
+        );
+
+        expect(result).toEqual({
+          ok: false,
+          code: "APPLICATION_PREFLIGHT_GIT_ERROR",
+        });
+
+        expect(adapter.isClean).not.toHaveBeenCalled();
+        expect(adapter.getCurrentHead).not.toHaveBeenCalled();
+      },
+    );
+
+    it(
+      "converts an isClean rejection into APPLICATION_PREFLIGHT_GIT_ERROR and does not proceed to the HEAD check",
+      async () => {
+        const adapter = createAdapter({
+          isClean: vi.fn(async () => {
+            throw new Error("git: status command failed");
+          }),
+        });
+
+        const result = await runApplicationPreflight(
+          baseRequest(),
+          adapter,
+        );
+
+        expect(result).toEqual({
+          ok: false,
+          code: "APPLICATION_PREFLIGHT_GIT_ERROR",
+        });
+
+        expect(adapter.getCurrentHead).not.toHaveBeenCalled();
+      },
+    );
+
+    it(
+      "converts a getCurrentHead rejection into APPLICATION_PREFLIGHT_GIT_ERROR",
+      async () => {
+        const adapter = createAdapter({
+          getCurrentHead: vi.fn(async () => {
+            throw new Error("git: rev-parse HEAD failed");
+          }),
+        });
+
+        const result = await runApplicationPreflight(
+          baseRequest(),
+          adapter,
+        );
+
+        expect(result).toEqual({
+          ok: false,
+          code: "APPLICATION_PREFLIGHT_GIT_ERROR",
+        });
+      },
+    );
+
+    it(
+      "never lets a Git inspection failure reach ok:true — the failing result carries no raw error text, only the deterministic code",
+      async () => {
+        const adapter = createAdapter({
+          getRemoteUrl: vi.fn(async () => {
+            throw new Error(
+              "sensitive-stderr-should-never-leak",
+            );
+          }),
+        });
+
+        const result = await runApplicationPreflight(
+          baseRequest(),
+          adapter,
+        );
+
+        expect(result.ok).toBe(false);
+        expect(JSON.stringify(result)).not.toContain(
+          "sensitive-stderr-should-never-leak",
+        );
+      },
+    );
+
+    it(
+      "still fails on APPLICATION_PREFLIGHT_SHA_MALFORMED before any Git operation runs, even though Git inspection failures are now handled",
+      async () => {
+        const adapter = createAdapter({
+          getRemoteUrl: vi.fn(async () => {
+            throw new Error("should never be reached");
+          }),
+        });
+
+        const result = await runApplicationPreflight(
+          baseRequest({ expectedApplicationSha: "279dd00" }),
+          adapter,
+        );
+
+        expect(result).toEqual({
+          ok: false,
+          code: "APPLICATION_PREFLIGHT_SHA_MALFORMED",
+        });
+
+        expect(adapter.getRemoteUrl).not.toHaveBeenCalled();
+      },
+    );
+  },
+);
