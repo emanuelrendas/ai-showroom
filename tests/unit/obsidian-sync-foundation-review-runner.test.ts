@@ -7,6 +7,7 @@ import {
 
 import {
   createProductionFoundationReviewDependencies,
+  readAuthorizedApplicationShaFromArgv,
   runFoundationReview,
   type FoundationReviewDependencies,
 } from "../../tools/obsidian-sync/foundation-review-runner";
@@ -135,7 +136,7 @@ function createHarness() {
       async () => true,
     ),
 
-    getLocalHead: vi.fn(
+    getCurrentHead: vi.fn(
       async () =>
         "279dd001c971f93036bac472b10669033311e24c",
     ),
@@ -904,7 +905,7 @@ describe(
               true,
           ),
 
-        getLocalHead:
+        getCurrentHead:
           vi.fn(
             async () =>
               LIVE_HEAD_A,
@@ -997,7 +998,7 @@ describe(
 
         harness.dependencies.applicationGitAdapter =
           realApplicationGitAdapter({
-            getLocalHead:
+            getCurrentHead:
               vi.fn(
                 async () =>
                   LIVE_HEAD_A,
@@ -1035,7 +1036,7 @@ describe(
 
         harness.dependencies.applicationGitAdapter =
           realApplicationGitAdapter({
-            getLocalHead:
+            getCurrentHead:
               vi.fn(
                 async () =>
                   LIVE_HEAD_B,
@@ -1074,7 +1075,7 @@ describe(
 
         harness.dependencies.applicationGitAdapter =
           realApplicationGitAdapter({
-            getLocalHead:
+            getCurrentHead:
               vi.fn(
                 async () =>
                   LIVE_HEAD_B,
@@ -1135,6 +1136,79 @@ describe(
         ).not.toBe(
           "279dd001c971f93036bac472b10669033311e24c",
         );
+      },
+    );
+  },
+);
+
+describe(
+  "FIND-AS-001 — readAuthorizedApplicationShaFromArgv (RED-3, blocker 2: duplicate CLI authority arguments)",
+  () => {
+    const SHA_A =
+      "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+
+    const SHA_B =
+      "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+
+    it(
+      "returns undefined when the --authorized-application-sha= flag is absent (zero occurrences)",
+      () => {
+        const result =
+          readAuthorizedApplicationShaFromArgv(
+            [
+              "--some-other-flag=value",
+            ],
+          );
+
+        expect(result).toBeUndefined();
+      },
+    );
+
+    it(
+      "returns the supplied value when the --authorized-application-sha= flag appears exactly once (one occurrence)",
+      () => {
+        const result =
+          readAuthorizedApplicationShaFromArgv(
+            [
+              `--authorized-application-sha=${SHA_A}`,
+            ],
+          );
+
+        expect(result).toBe(SHA_A);
+      },
+    );
+
+    it(
+      "returns undefined, not the first, not the last, and not a merged value, when the flag appears twice with two DIFFERENT values (duplicate-conflicting)",
+      () => {
+        const result =
+          readAuthorizedApplicationShaFromArgv(
+            [
+              `--authorized-application-sha=${SHA_A}`,
+              `--authorized-application-sha=${SHA_B}`,
+            ],
+          );
+
+        // Do not select first. Do not select last. Do not merge values.
+        // Do not infer intent. Ambiguous authority input fails closed.
+        expect(result).toBeUndefined();
+        expect(result).not.toBe(SHA_A);
+        expect(result).not.toBe(SHA_B);
+      },
+    );
+
+    it(
+      "returns undefined even when the flag appears twice with the SAME value (duplicate-identical) — repetition itself is the defect, not disagreement",
+      () => {
+        const result =
+          readAuthorizedApplicationShaFromArgv(
+            [
+              `--authorized-application-sha=${SHA_A}`,
+              `--authorized-application-sha=${SHA_A}`,
+            ],
+          );
+
+        expect(result).toBeUndefined();
       },
     );
   },
