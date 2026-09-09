@@ -7,9 +7,15 @@ import {
 
 import {
   createProductionFoundationReviewDependencies,
+  readAuthorizedApplicationShaFromArgv,
   runFoundationReview,
   type FoundationReviewDependencies,
 } from "../../tools/obsidian-sync/foundation-review-runner";
+
+import {
+  runApplicationPreflight,
+  type ApplicationPreflightGitAdapter,
+} from "../../tools/obsidian-sync/application-preflight";
 
 const BASE_SHA =
   "bc856c1da42209e57ffd96601e3ed75ddaa0b279";
@@ -111,6 +117,36 @@ function createHarness() {
       }),
     );
 
+  const applicationPreflightFn =
+    vi.fn<
+      NonNullable<
+        FoundationReviewDependencies["applicationPreflightFn"]
+      >
+    >(
+      async () => ({
+        ok: true,
+        code: "APPLICATION_PREFLIGHT_VERIFIED",
+        verifiedApplicationSha:
+          "279dd001c971f93036bac472b10669033311e24c",
+      }),
+    );
+
+  const applicationGitAdapter: ApplicationPreflightGitAdapter = {
+    isClean: vi.fn(
+      async () => true,
+    ),
+
+    getCurrentHead: vi.fn(
+      async () =>
+        "279dd001c971f93036bac472b10669033311e24c",
+    ),
+
+    getRemoteUrl: vi.fn(
+      async () =>
+        "https://github.com/emanuelrendas/ai-showroom.git",
+    ),
+  };
+
   const dependencies:
     FoundationReviewDependencies = {
     environment: {
@@ -135,6 +171,16 @@ function createHarness() {
     isolationAdapter: {},
     pullAdapter: {},
 
+    applicationGitAdapter,
+    applicationPreflightFn,
+
+    // FIND-AS-001 / A1: per-execution authorized SHA, plain test fixture
+    // data threaded through the (mocked, by default) applicationPreflightFn
+    // above. Individual tests below override this to prove the runner
+    // never substitutes anything else for it.
+    authorizedApplicationSha:
+      "279dd001c971f93036bac472b10669033311e24c",
+
     executeMutationPipelineFn,
     executeLocalObsidianPullFn,
   };
@@ -147,6 +193,7 @@ function createHarness() {
     now,
     executeMutationPipelineFn,
     executeLocalObsidianPullFn,
+    applicationPreflightFn,
   };
 }
 
@@ -178,6 +225,88 @@ describe(
           harness
             .executeMutationPipelineFn,
         ).not.toHaveBeenCalled();
+      },
+    );
+
+    it(
+      "invokes the application preflight and blocks the mutation pipeline when it fails (FIND-AS-001)",
+      async () => {
+        const harness =
+          createHarness();
+
+        harness
+          .applicationPreflightFn
+          .mockResolvedValueOnce({
+            ok: false,
+            code: "APPLICATION_PREFLIGHT_HEAD_MISMATCH",
+          });
+
+        const result =
+          await runFoundationReview(
+            harness.dependencies,
+          );
+
+        expect(result).toEqual({
+          FINAL_VERDICT: "HOLD",
+          FAILURE_CODE:
+            "APPLICATION_PREFLIGHT_HEAD_MISMATCH",
+        });
+
+        expect(
+          harness
+            .applicationPreflightFn,
+        ).toHaveBeenCalledTimes(1);
+
+        expect(
+          harness
+            .executeMutationPipelineFn,
+        ).not.toHaveBeenCalled();
+      },
+    );
+
+    it(
+      "invokes the application preflight before the mutation pipeline on the successful path (FIND-AS-001)",
+      async () => {
+        const harness =
+          createHarness();
+
+        const result =
+          await runFoundationReview(
+            harness.dependencies,
+          );
+
+        expect(result).toEqual({
+          FINAL_VERDICT: "PASS",
+          FAILURE_CODE: null,
+        });
+
+        expect(
+          harness
+            .applicationPreflightFn,
+        ).toHaveBeenCalledTimes(1);
+
+        expect(
+          harness
+            .executeMutationPipelineFn,
+        ).toHaveBeenCalledTimes(1);
+
+        const preflightOrder =
+          harness
+            .applicationPreflightFn
+            .mock
+            .invocationCallOrder[0];
+
+        const mutationOrder =
+          harness
+            .executeMutationPipelineFn
+            .mock
+            .invocationCallOrder[0];
+
+        expect(
+          preflightOrder,
+        ).toBeLessThan(
+          mutationOrder as number,
+        );
       },
     );
 
@@ -736,6 +865,529 @@ describe(
         expect(
           dependencies.executeLocalObsidianPullFn,
         ).toBeTypeOf("function");
+
+        expect(
+          dependencies.applicationGitAdapter,
+        ).toBeDefined();
+
+        expect(
+          dependencies.applicationPreflightFn,
+        ).toBeTypeOf("function");
+
+        // FIND-AS-001 / A1 (RED-2): the production factory must carry NO
+        // default, fallback, or historical authorized application SHA.
+        // A bare call to this factory must fail closed on the
+        // application preflight, not silently pass with 279dd001....
+        expect(
+          dependencies.authorizedApplicationSha,
+        ).toBeUndefined();
+      },
+    );
+  },
+);
+
+describe(
+  "FIND-AS-001 / Option A1 — per-execution authorized application SHA (RED-2)",
+  () => {
+    const LIVE_HEAD_A =
+      "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+
+    const LIVE_HEAD_B =
+      "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+
+    function realApplicationGitAdapter(
+      overrides: Partial<ApplicationPreflightGitAdapter> = {},
+    ): ApplicationPreflightGitAdapter {
+      return {
+        isClean:
+          vi.fn(
+            async () =>
+              true,
+          ),
+
+        getCurrentHead:
+          vi.fn(
+            async () =>
+              LIVE_HEAD_A,
+          ),
+
+        getRemoteUrl:
+          vi.fn(
+            async () =>
+              "https://github.com/emanuelrendas/ai-showroom.git",
+          ),
+
+        ...overrides,
+      };
+    }
+
+    it(
+      "holds and never reaches the mutation pipeline when no per-execution authorized SHA is supplied",
+      async () => {
+        const harness =
+          createHarness();
+
+        harness.dependencies.applicationPreflightFn =
+          runApplicationPreflight;
+
+        harness.dependencies.applicationGitAdapter =
+          realApplicationGitAdapter();
+
+        harness.dependencies.authorizedApplicationSha =
+          undefined;
+
+        const result =
+          await runFoundationReview(
+            harness.dependencies,
+          );
+
+        expect(result).toEqual({
+          FINAL_VERDICT: "HOLD",
+          FAILURE_CODE:
+            "APPLICATION_PREFLIGHT_SHA_MISSING",
+        });
+
+        expect(
+          harness
+            .executeMutationPipelineFn,
+        ).not.toHaveBeenCalled();
+      },
+    );
+
+    it(
+      "holds and never reaches the mutation pipeline when the per-execution authorized SHA is malformed",
+      async () => {
+        const harness =
+          createHarness();
+
+        harness.dependencies.applicationPreflightFn =
+          runApplicationPreflight;
+
+        harness.dependencies.applicationGitAdapter =
+          realApplicationGitAdapter();
+
+        harness.dependencies.authorizedApplicationSha =
+          "279dd00";
+
+        const result =
+          await runFoundationReview(
+            harness.dependencies,
+          );
+
+        expect(result).toEqual({
+          FINAL_VERDICT: "HOLD",
+          FAILURE_CODE:
+            "APPLICATION_PREFLIGHT_SHA_MALFORMED",
+        });
+
+        expect(
+          harness
+            .executeMutationPipelineFn,
+        ).not.toHaveBeenCalled();
+      },
+    );
+
+    it(
+      "passes the application preflight and reaches the mutation pipeline when the authorized SHA exactly matches live HEAD (authority A / HEAD A)",
+      async () => {
+        const harness =
+          createHarness();
+
+        harness.dependencies.applicationPreflightFn =
+          runApplicationPreflight;
+
+        harness.dependencies.applicationGitAdapter =
+          realApplicationGitAdapter({
+            getCurrentHead:
+              vi.fn(
+                async () =>
+                  LIVE_HEAD_A,
+              ),
+          });
+
+        harness.dependencies.authorizedApplicationSha =
+          LIVE_HEAD_A;
+
+        const result =
+          await runFoundationReview(
+            harness.dependencies,
+          );
+
+        expect(result).toEqual({
+          FINAL_VERDICT: "PASS",
+          FAILURE_CODE: null,
+        });
+
+        expect(
+          harness
+            .executeMutationPipelineFn,
+        ).toHaveBeenCalledTimes(1);
+      },
+    );
+
+    it(
+      "holds with APPLICATION_PREFLIGHT_HEAD_MISMATCH and blocks the mutation pipeline when the authorized SHA does not match live HEAD (authority A / HEAD B)",
+      async () => {
+        const harness =
+          createHarness();
+
+        harness.dependencies.applicationPreflightFn =
+          runApplicationPreflight;
+
+        harness.dependencies.applicationGitAdapter =
+          realApplicationGitAdapter({
+            getCurrentHead:
+              vi.fn(
+                async () =>
+                  LIVE_HEAD_B,
+              ),
+          });
+
+        harness.dependencies.authorizedApplicationSha =
+          LIVE_HEAD_A;
+
+        const result =
+          await runFoundationReview(
+            harness.dependencies,
+          );
+
+        expect(result).toEqual({
+          FINAL_VERDICT: "HOLD",
+          FAILURE_CODE:
+            "APPLICATION_PREFLIGHT_HEAD_MISMATCH",
+        });
+
+        expect(
+          harness
+            .executeMutationPipelineFn,
+        ).not.toHaveBeenCalled();
+      },
+    );
+
+    it(
+      "a second, independent execution authorized against a different SHA and a different live HEAD also passes, without any source change (authority B / HEAD B)",
+      async () => {
+        const harness =
+          createHarness();
+
+        harness.dependencies.applicationPreflightFn =
+          runApplicationPreflight;
+
+        harness.dependencies.applicationGitAdapter =
+          realApplicationGitAdapter({
+            getCurrentHead:
+              vi.fn(
+                async () =>
+                  LIVE_HEAD_B,
+              ),
+          });
+
+        harness.dependencies.authorizedApplicationSha =
+          LIVE_HEAD_B;
+
+        const result =
+          await runFoundationReview(
+            harness.dependencies,
+          );
+
+        expect(result).toEqual({
+          FINAL_VERDICT: "PASS",
+          FAILURE_CODE: null,
+        });
+
+        expect(
+          harness
+            .executeMutationPipelineFn,
+        ).toHaveBeenCalledTimes(1);
+      },
+    );
+
+    it(
+      "threads the exact per-execution authorized SHA into the preflight request, never substituting the historical FIND-AS-001 SHA or any other value",
+      async () => {
+        const harness =
+          createHarness();
+
+        harness.dependencies.authorizedApplicationSha =
+          undefined;
+
+        await runFoundationReview(
+          harness.dependencies,
+        );
+
+        expect(
+          harness
+            .applicationPreflightFn,
+        ).toHaveBeenCalledTimes(1);
+
+        const [
+          request,
+        ] =
+          harness
+            .applicationPreflightFn
+            .mock.calls[0]!;
+
+        expect(
+          request.expectedApplicationSha,
+        ).toBeUndefined();
+
+        expect(
+          request.expectedApplicationSha,
+        ).not.toBe(
+          "279dd001c971f93036bac472b10669033311e24c",
+        );
+      },
+    );
+  },
+);
+
+describe(
+  "FIND-AS-001 — readAuthorizedApplicationShaFromArgv (RED-3, blocker 2: duplicate CLI authority arguments)",
+  () => {
+    const SHA_A =
+      "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+
+    const SHA_B =
+      "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+
+    it(
+      "returns undefined when the --authorized-application-sha= flag is absent (zero occurrences)",
+      () => {
+        const result =
+          readAuthorizedApplicationShaFromArgv(
+            [
+              "--some-other-flag=value",
+            ],
+          );
+
+        expect(result).toBeUndefined();
+      },
+    );
+
+    it(
+      "returns the supplied value when the --authorized-application-sha= flag appears exactly once (one occurrence)",
+      () => {
+        const result =
+          readAuthorizedApplicationShaFromArgv(
+            [
+              `--authorized-application-sha=${SHA_A}`,
+            ],
+          );
+
+        expect(result).toBe(SHA_A);
+      },
+    );
+
+    it(
+      "returns undefined, not the first, not the last, and not a merged value, when the flag appears twice with two DIFFERENT values (duplicate-conflicting)",
+      () => {
+        const result =
+          readAuthorizedApplicationShaFromArgv(
+            [
+              `--authorized-application-sha=${SHA_A}`,
+              `--authorized-application-sha=${SHA_B}`,
+            ],
+          );
+
+        // Do not select first. Do not select last. Do not merge values.
+        // Do not infer intent. Ambiguous authority input fails closed.
+        expect(result).toBeUndefined();
+        expect(result).not.toBe(SHA_A);
+        expect(result).not.toBe(SHA_B);
+      },
+    );
+
+    it(
+      "returns undefined even when the flag appears twice with the SAME value (duplicate-identical) — repetition itself is the defect, not disagreement",
+      () => {
+        const result =
+          readAuthorizedApplicationShaFromArgv(
+            [
+              `--authorized-application-sha=${SHA_A}`,
+              `--authorized-application-sha=${SHA_A}`,
+            ],
+          );
+
+        expect(result).toBeUndefined();
+      },
+    );
+  },
+);
+
+// FIND-AS-001 independent review, blocker 3 (RED-4): two independent
+// fail-closed boundaries.
+//
+// Layer 1 (proven against the REAL runApplicationPreflight): a Git
+// inspection failure inside the preflight itself must resolve to a
+// normal HOLD/APPLICATION_PREFLIGHT_GIT_ERROR result, not an unhandled
+// exception that reaches runFoundationReview.
+//
+// Layer 2 (proven independently of Layer 1, via an injected
+// applicationPreflightFn that throws directly): even if a
+// dependency-injected preflight implementation itself misbehaves and
+// throws — bypassing whatever Layer 1 does — runFoundationReview must
+// still fail closed with HOLD/APPLICATION_PREFLIGHT_EXECUTION_ERROR,
+// never let the exception propagate, and never invoke the mutation
+// pipeline.
+describe(
+  "FIND-AS-001 independent review, blocker 3 — fail-closed Git/preflight exception handling (RED-4)",
+  () => {
+    function realApplicationGitAdapterWithFailure(
+      overrides: Partial<ApplicationPreflightGitAdapter>,
+    ): ApplicationPreflightGitAdapter {
+      return {
+        isClean: vi.fn(async () => true),
+
+        getCurrentHead: vi.fn(
+          async () =>
+            "279dd001c971f93036bac472b10669033311e24c",
+        ),
+
+        getRemoteUrl: vi.fn(
+          async () =>
+            "https://github.com/emanuelrendas/ai-showroom.git",
+        ),
+
+        ...overrides,
+      };
+    }
+
+    it(
+      "holds with APPLICATION_PREFLIGHT_GIT_ERROR and blocks the mutation pipeline when the REAL preflight's getRemoteUrl rejects",
+      async () => {
+        const harness = createHarness();
+
+        harness.dependencies.applicationPreflightFn =
+          runApplicationPreflight;
+
+        harness.dependencies.applicationGitAdapter =
+          realApplicationGitAdapterWithFailure({
+            getRemoteUrl: vi.fn(async () => {
+              throw new Error("git: origin remote not found");
+            }),
+          });
+
+        const result = await runFoundationReview(
+          harness.dependencies,
+        );
+
+        expect(result).toEqual({
+          FINAL_VERDICT: "HOLD",
+          FAILURE_CODE: "APPLICATION_PREFLIGHT_GIT_ERROR",
+        });
+
+        expect(
+          harness.executeMutationPipelineFn,
+        ).not.toHaveBeenCalled();
+      },
+    );
+
+    it(
+      "holds with APPLICATION_PREFLIGHT_GIT_ERROR and blocks the mutation pipeline when the REAL preflight's isClean rejects",
+      async () => {
+        const harness = createHarness();
+
+        harness.dependencies.applicationPreflightFn =
+          runApplicationPreflight;
+
+        harness.dependencies.applicationGitAdapter =
+          realApplicationGitAdapterWithFailure({
+            isClean: vi.fn(async () => {
+              throw new Error("git: status command failed");
+            }),
+          });
+
+        const result = await runFoundationReview(
+          harness.dependencies,
+        );
+
+        expect(result).toEqual({
+          FINAL_VERDICT: "HOLD",
+          FAILURE_CODE: "APPLICATION_PREFLIGHT_GIT_ERROR",
+        });
+
+        expect(
+          harness.executeMutationPipelineFn,
+        ).not.toHaveBeenCalled();
+      },
+    );
+
+    it(
+      "holds with APPLICATION_PREFLIGHT_GIT_ERROR and blocks the mutation pipeline when the REAL preflight's getCurrentHead rejects",
+      async () => {
+        const harness = createHarness();
+
+        harness.dependencies.applicationPreflightFn =
+          runApplicationPreflight;
+
+        harness.dependencies.applicationGitAdapter =
+          realApplicationGitAdapterWithFailure({
+            getCurrentHead: vi.fn(async () => {
+              throw new Error("git: rev-parse HEAD failed");
+            }),
+          });
+
+        const result = await runFoundationReview(
+          harness.dependencies,
+        );
+
+        expect(result).toEqual({
+          FINAL_VERDICT: "HOLD",
+          FAILURE_CODE: "APPLICATION_PREFLIGHT_GIT_ERROR",
+        });
+
+        expect(
+          harness.executeMutationPipelineFn,
+        ).not.toHaveBeenCalled();
+      },
+    );
+
+    it(
+      "holds with APPLICATION_PREFLIGHT_EXECUTION_ERROR and blocks the mutation pipeline when the injected applicationPreflightFn itself throws unexpectedly",
+      async () => {
+        const harness = createHarness();
+
+        harness.applicationPreflightFn.mockImplementationOnce(
+          async () => {
+            throw new Error(
+              "unexpected crash inside a custom preflight implementation",
+            );
+          },
+        );
+
+        const result = await runFoundationReview(
+          harness.dependencies,
+        );
+
+        expect(result).toEqual({
+          FINAL_VERDICT: "HOLD",
+          FAILURE_CODE:
+            "APPLICATION_PREFLIGHT_EXECUTION_ERROR",
+        });
+
+        expect(
+          harness.executeMutationPipelineFn,
+        ).not.toHaveBeenCalled();
+      },
+    );
+
+    it(
+      "the existing successful preflight path is unaffected by the new exception boundary",
+      async () => {
+        const harness = createHarness();
+
+        const result = await runFoundationReview(
+          harness.dependencies,
+        );
+
+        expect(result).toEqual({
+          FINAL_VERDICT: "PASS",
+          FAILURE_CODE: null,
+        });
+
+        expect(
+          harness.executeMutationPipelineFn,
+        ).toHaveBeenCalledTimes(1);
       },
     );
   },

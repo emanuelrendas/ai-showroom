@@ -170,6 +170,25 @@ export class GitCliAdapter
     return output.trim();
   }
 
+  // FIND-AS-001 (independent review, blocker 1): the actual checked-out
+  // commit, as distinct from getLocalHead's branch-ref tip lookup above.
+  // Extra method on this class, not part of the shared GitAdapter
+  // interface — only ApplicationPreflightGitAdapter needs it.
+  async getCurrentHead(
+    repoPath: string,
+  ): Promise<string> {
+    const output =
+      await runGit(
+        repoPath,
+        [
+          "rev-parse",
+          "HEAD",
+        ],
+      );
+
+    return output.trim();
+  }
+
   async getRemoteHead(
     repoPath: string,
     branch: string,
@@ -209,6 +228,22 @@ export class GitCliAdapter
     }
 
     return sha;
+  }
+
+  async getRemoteUrl(
+    repoPath: string,
+  ): Promise<string> {
+    const output =
+      await runGit(
+        repoPath,
+        [
+          "remote",
+          "get-url",
+          "origin",
+        ],
+      );
+
+    return output.trim();
   }
 
   async createTransactionWorktree(

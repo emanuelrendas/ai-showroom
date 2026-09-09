@@ -31,6 +31,13 @@ import {
   GitCliPullAdapter,
 } from "./git-cli-pull-adapter";
 
+import {
+  runApplicationPreflight,
+  type ApplicationPreflightGitAdapter,
+  type ApplicationPreflightRequest,
+  type ApplicationPreflightResult,
+} from "./application-preflight";
+
 export type FoundationReviewEvidence = {
   FINAL_VERDICT:
     "PASS" | "HOLD";
@@ -92,6 +99,36 @@ export type FoundationReviewDependencies = {
   pullAdapter?:
     unknown;
 
+  // FIND-AS-001: Live Application Preflight. Verifies the live
+  // ai-showroom checkout this runner is executing from — independent
+  // from the vault checks above — before any certification decision is
+  // allowed to proceed to the mutation pipeline.
+  applicationGitAdapter?:
+    ApplicationPreflightGitAdapter;
+
+  applicationPreflightFn?:
+    (
+      request: ApplicationPreflightRequest,
+      gitAdapter: ApplicationPreflightGitAdapter,
+    ) => Promise<ApplicationPreflightResult>;
+
+  // Repository path of the live ai-showroom checkout to verify. Defaults
+  // to the current working directory in production (the checkout this
+  // process is actually running from); injectable for tests.
+  applicationRepoPath?:
+    string;
+
+  // FIND-AS-001 / Option A1: the application SHA Emanuel has explicitly
+  // authorized for THIS execution of the Foundation Review, and only this
+  // execution. Supplied per run by the caller (see main()'s CLI argument
+  // parsing below); never hardcoded, never defaulted, never derived from
+  // HEAD, never cached from a previous run. Missing or malformed values
+  // are enforced by runApplicationPreflight itself (this dependency is
+  // passed straight through, unchanged), so a bare `undefined` here fails
+  // closed rather than being silently substituted.
+  authorizedApplicationSha?:
+    string | null;
+
   executeLocalObsidianPullFn?:
     (
       pullRequest:
@@ -135,6 +172,23 @@ const CREATION_RUNNER_APPLICATION_SHA =
 
 const CANONICAL_APPLICATION_BASELINE =
   "df87a2bd96b2c22d3da1931cb1f2aec7788b1c8f" as const;
+
+// FIND-AS-001 / Option A1: the live application checkout this runner
+// verifies is always emanuelrendas/ai-showroom. This is structural
+// identity, not a per-run authorization value, so it stays a fixed
+// constant. The SHA that identity's HEAD must match is NOT fixed here —
+// see `authorizedApplicationSha` on FoundationReviewDependencies.
+//
+// FIND-AS-001 (independent review, blocker 1): there is deliberately no
+// branch constant here any more. The preflight verifies the ACTUAL
+// checked-out commit (ApplicationPreflightGitAdapter.getCurrentHead),
+// never a branch ref tip, so which branch a worktree happens to be on is
+// not part of this check.
+const APPLICATION_OWNER =
+  "emanuelrendas" as const;
+
+const APPLICATION_REPO =
+  "ai-showroom" as const;
 
 const CURRENT_STATUS_MARKER =
   "Current Status: ACTIVE";
@@ -211,6 +265,80 @@ export async function runFoundationReview(
 
       FAILURE_CODE:
         "FOUNDATION_REVIEW_NOT_ARMED",
+    };
+  }
+
+  // FIND-AS-001: Live Application Preflight. Must run, and must be
+  // satisfied, before any vault check or the mutation pipeline. A missing
+  // preflight capability or a failed preflight both fail closed.
+  if (
+    !dependencies.applicationPreflightFn ||
+    !dependencies.applicationGitAdapter
+  ) {
+    return {
+      FINAL_VERDICT:
+        "HOLD",
+
+      FAILURE_CODE:
+        "FOUNDATION_REVIEW_DEPENDENCY_MISSING",
+    };
+  }
+
+  // FIND-AS-001 (independent review, blocker 3): applicationPreflightFn
+  // is dependency-injected. The production implementation
+  // (runApplicationPreflight) already fails closed on its own Git
+  // inspection failures, but this call site cannot assume that of every
+  // implementation it might ever be given — a custom, test, or future
+  // implementation that throws directly must not be able to crash this
+  // function and bypass structured evidence. This is a second,
+  // independent exception boundary: it wraps only this one invocation,
+  // not the vault or mutation-pipeline logic below.
+  let applicationPreflightResult:
+    ApplicationPreflightResult;
+
+  try {
+    applicationPreflightResult =
+      await dependencies.applicationPreflightFn(
+        {
+          // FIND-AS-001 / Option A1: passed through exactly as supplied
+          // for this execution. Never a hardcoded constant, never
+          // derived from HEAD. runApplicationPreflight fails closed on
+          // undefined/null/malformed on its own; this call site does
+          // not pre-judge it.
+          expectedApplicationSha:
+            dependencies.authorizedApplicationSha,
+
+          repoPath:
+            dependencies.applicationRepoPath ??
+            process.cwd(),
+
+          expectedOwner:
+            APPLICATION_OWNER,
+
+          expectedRepo:
+            APPLICATION_REPO,
+        },
+        dependencies.applicationGitAdapter,
+      );
+  } catch {
+    return {
+      FINAL_VERDICT:
+        "HOLD",
+
+      FAILURE_CODE:
+        "APPLICATION_PREFLIGHT_EXECUTION_ERROR",
+    };
+  }
+
+  if (
+    !applicationPreflightResult.ok
+  ) {
+    return {
+      FINAL_VERDICT:
+        "HOLD",
+
+      FAILURE_CODE:
+        applicationPreflightResult.code,
     };
   }
 
@@ -646,6 +774,26 @@ export function createProductionFoundationReviewDependencies():
 
     pullAdapter,
 
+    // FIND-AS-001: GitCliAdapter already implements isClean, getCurrentHead
+    // and getRemoteUrl, exactly the surface ApplicationPreflightGitAdapter
+    // needs, so the same certified adapter instance is reused rather than
+    // constructing a second one.
+    applicationGitAdapter:
+      transactionAdapter,
+
+    applicationPreflightFn:
+      runApplicationPreflight,
+
+    applicationRepoPath:
+      process.cwd(),
+
+    // FIND-AS-001 / Option A1: deliberately absent. No default, no
+    // fallback, no historical SHA baked in here. main() below is
+    // responsible for supplying `authorizedApplicationSha` explicitly,
+    // per execution, from a source outside this factory (a CLI
+    // argument). A bare call to this factory therefore fails closed on
+    // the application preflight, by design.
+
     readTarget:
       async (
         vaultRoot,
@@ -720,12 +868,56 @@ export function createProductionFoundationReviewDependencies():
   };
 }
 
+// FIND-AS-001 / Option A1: the only sanctioned per-execution source for
+// the authorized application SHA is an explicit CLI argument supplied to
+// this exact invocation, e.g.
+//   tsx foundation-review-runner.ts --authorized-application-sha=<sha>
+// Nothing here reads an environment variable, a config file, or any
+// value left over from a previous run; a run with no matching argument
+// yields `undefined`, which runApplicationPreflight then fails closed on.
+//
+// FIND-AS-001 (independent review, blocker 2): exactly one occurrence of
+// this flag is accepted. Zero occurrences is the ordinary missing-input
+// case (fails closed downstream via APPLICATION_PREFLIGHT_SHA_MISSING).
+// Two or more occurrences — whether the values agree or conflict — is
+// ambiguous authority input and is refused the same way: do not select
+// the first, do not select the last, do not merge values, do not infer
+// intent. A caller that means to supply exactly one authority value
+// never has a legitimate reason to pass this flag twice.
+const AUTHORIZED_APPLICATION_SHA_FLAG =
+  "--authorized-application-sha=" as const;
+
+export function readAuthorizedApplicationShaFromArgv(
+  argv: readonly string[],
+): string | undefined {
+  const matches =
+    argv.filter(
+      (arg) =>
+        arg.startsWith(
+          AUTHORIZED_APPLICATION_SHA_FLAG,
+        ),
+    );
+
+  if (matches.length !== 1) {
+    return undefined;
+  }
+
+  return matches[0]!.slice(
+    AUTHORIZED_APPLICATION_SHA_FLAG.length,
+  );
+}
+
 export async function main():
   Promise<void> {
   const evidence =
-    await runFoundationReview(
-      createProductionFoundationReviewDependencies(),
-    );
+    await runFoundationReview({
+      ...createProductionFoundationReviewDependencies(),
+
+      authorizedApplicationSha:
+        readAuthorizedApplicationShaFromArgv(
+          process.argv.slice(2),
+        ),
+    });
 
   console.log(
     JSON.stringify(
