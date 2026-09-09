@@ -11,6 +11,10 @@ import {
   type FoundationReviewDependencies,
 } from "../../tools/obsidian-sync/foundation-review-runner";
 
+import type {
+  ApplicationPreflightGitAdapter,
+} from "../../tools/obsidian-sync/application-preflight";
+
 const BASE_SHA =
   "bc856c1da42209e57ffd96601e3ed75ddaa0b279";
 
@@ -112,7 +116,11 @@ function createHarness() {
     );
 
   const applicationPreflightFn =
-    vi.fn(
+    vi.fn<
+      NonNullable<
+        FoundationReviewDependencies["applicationPreflightFn"]
+      >
+    >(
       async () => ({
         ok: true,
         code: "APPLICATION_PREFLIGHT_VERIFIED",
@@ -120,6 +128,22 @@ function createHarness() {
           "279dd001c971f93036bac472b10669033311e24c",
       }),
     );
+
+  const applicationGitAdapter: ApplicationPreflightGitAdapter = {
+    isClean: vi.fn(
+      async () => true,
+    ),
+
+    getLocalHead: vi.fn(
+      async () =>
+        "279dd001c971f93036bac472b10669033311e24c",
+    ),
+
+    getRemoteUrl: vi.fn(
+      async () =>
+        "https://github.com/emanuelrendas/ai-showroom.git",
+    ),
+  };
 
   const dependencies:
     FoundationReviewDependencies = {
@@ -145,7 +169,7 @@ function createHarness() {
     isolationAdapter: {},
     pullAdapter: {},
 
-    applicationGitAdapter: {},
+    applicationGitAdapter,
     applicationPreflightFn,
 
     executeMutationPipelineFn,
@@ -831,6 +855,14 @@ describe(
 
         expect(
           dependencies.executeLocalObsidianPullFn,
+        ).toBeTypeOf("function");
+
+        expect(
+          dependencies.applicationGitAdapter,
+        ).toBeDefined();
+
+        expect(
+          dependencies.applicationPreflightFn,
         ).toBeTypeOf("function");
       },
     );

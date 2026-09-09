@@ -31,6 +31,13 @@ import {
   GitCliPullAdapter,
 } from "./git-cli-pull-adapter";
 
+import {
+  runApplicationPreflight,
+  type ApplicationPreflightGitAdapter,
+  type ApplicationPreflightRequest,
+  type ApplicationPreflightResult,
+} from "./application-preflight";
+
 export type FoundationReviewEvidence = {
   FINAL_VERDICT:
     "PASS" | "HOLD";
@@ -92,6 +99,25 @@ export type FoundationReviewDependencies = {
   pullAdapter?:
     unknown;
 
+  // FIND-AS-001: Live Application Preflight. Verifies the live
+  // ai-showroom checkout this runner is executing from — independent
+  // from the vault checks above — before any certification decision is
+  // allowed to proceed to the mutation pipeline.
+  applicationGitAdapter?:
+    ApplicationPreflightGitAdapter;
+
+  applicationPreflightFn?:
+    (
+      request: ApplicationPreflightRequest,
+      gitAdapter: ApplicationPreflightGitAdapter,
+    ) => Promise<ApplicationPreflightResult>;
+
+  // Repository path of the live ai-showroom checkout to verify. Defaults
+  // to the current working directory in production (the checkout this
+  // process is actually running from); injectable for tests.
+  applicationRepoPath?:
+    string;
+
   executeLocalObsidianPullFn?:
     (
       pullRequest:
@@ -135,6 +161,21 @@ const CREATION_RUNNER_APPLICATION_SHA =
 
 const CANONICAL_APPLICATION_BASELINE =
   "df87a2bd96b2c22d3da1931cb1f2aec7788b1c8f" as const;
+
+// FIND-AS-001: authorized live application checkout this runner must
+// independently verify before certifying anything. Fixed, not derived
+// from whatever HEAD happens to be at runtime.
+const APPLICATION_EXPECTED_SHA =
+  "279dd001c971f93036bac472b10669033311e24c" as const;
+
+const APPLICATION_BRANCH =
+  "feature/milestone-1-foundation" as const;
+
+const APPLICATION_OWNER =
+  "emanuelrendas" as const;
+
+const APPLICATION_REPO =
+  "ai-showroom" as const;
 
 const CURRENT_STATUS_MARKER =
   "Current Status: ACTIVE";
@@ -211,6 +252,56 @@ export async function runFoundationReview(
 
       FAILURE_CODE:
         "FOUNDATION_REVIEW_NOT_ARMED",
+    };
+  }
+
+  // FIND-AS-001: Live Application Preflight. Must run, and must be
+  // satisfied, before any vault check or the mutation pipeline. A missing
+  // preflight capability or a failed preflight both fail closed.
+  if (
+    !dependencies.applicationPreflightFn ||
+    !dependencies.applicationGitAdapter
+  ) {
+    return {
+      FINAL_VERDICT:
+        "HOLD",
+
+      FAILURE_CODE:
+        "FOUNDATION_REVIEW_DEPENDENCY_MISSING",
+    };
+  }
+
+  const applicationPreflightResult =
+    await dependencies.applicationPreflightFn(
+      {
+        expectedApplicationSha:
+          APPLICATION_EXPECTED_SHA,
+
+        repoPath:
+          dependencies.applicationRepoPath ??
+          process.cwd(),
+
+        branch:
+          APPLICATION_BRANCH,
+
+        expectedOwner:
+          APPLICATION_OWNER,
+
+        expectedRepo:
+          APPLICATION_REPO,
+      },
+      dependencies.applicationGitAdapter,
+    );
+
+  if (
+    !applicationPreflightResult.ok
+  ) {
+    return {
+      FINAL_VERDICT:
+        "HOLD",
+
+      FAILURE_CODE:
+        applicationPreflightResult.code,
     };
   }
 
@@ -645,6 +736,19 @@ export function createProductionFoundationReviewDependencies():
     transactionAdapter,
 
     pullAdapter,
+
+    // FIND-AS-001: GitCliAdapter already implements isClean, getLocalHead
+    // and getRemoteUrl, exactly the surface ApplicationPreflightGitAdapter
+    // needs, so the same certified adapter instance is reused rather than
+    // constructing a second one.
+    applicationGitAdapter:
+      transactionAdapter,
+
+    applicationPreflightFn:
+      runApplicationPreflight,
+
+    applicationRepoPath:
+      process.cwd(),
 
     readTarget:
       async (

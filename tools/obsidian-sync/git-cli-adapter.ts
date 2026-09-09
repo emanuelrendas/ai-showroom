@@ -211,6 +211,22 @@ export class GitCliAdapter
     return sha;
   }
 
+  async getRemoteUrl(
+    repoPath: string,
+  ): Promise<string> {
+    const output =
+      await runGit(
+        repoPath,
+        [
+          "remote",
+          "get-url",
+          "origin",
+        ],
+      );
+
+    return output.trim();
+  }
+
   async createTransactionWorktree(
     repoPath: string,
     baseSha: string,
