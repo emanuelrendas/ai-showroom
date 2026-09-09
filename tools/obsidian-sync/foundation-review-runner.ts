@@ -174,13 +174,16 @@ const CANONICAL_APPLICATION_BASELINE =
   "df87a2bd96b2c22d3da1931cb1f2aec7788b1c8f" as const;
 
 // FIND-AS-001 / Option A1: the live application checkout this runner
-// verifies is always emanuelrendas/ai-showroom on this branch. This is
-// structural identity, not a per-run authorization value, so it stays a
-// fixed constant. The SHA that identity's HEAD must match is NOT fixed
-// here — see `authorizedApplicationSha` on FoundationReviewDependencies.
-const APPLICATION_BRANCH =
-  "feature/milestone-1-foundation" as const;
-
+// verifies is always emanuelrendas/ai-showroom. This is structural
+// identity, not a per-run authorization value, so it stays a fixed
+// constant. The SHA that identity's HEAD must match is NOT fixed here —
+// see `authorizedApplicationSha` on FoundationReviewDependencies.
+//
+// FIND-AS-001 (independent review, blocker 1): there is deliberately no
+// branch constant here any more. The preflight verifies the ACTUAL
+// checked-out commit (ApplicationPreflightGitAdapter.getCurrentHead),
+// never a branch ref tip, so which branch a worktree happens to be on is
+// not part of this check.
 const APPLICATION_OWNER =
   "emanuelrendas" as const;
 
@@ -294,9 +297,6 @@ export async function runFoundationReview(
         repoPath:
           dependencies.applicationRepoPath ??
           process.cwd(),
-
-        branch:
-          APPLICATION_BRANCH,
 
         expectedOwner:
           APPLICATION_OWNER,
@@ -751,7 +751,7 @@ export function createProductionFoundationReviewDependencies():
 
     pullAdapter,
 
-    // FIND-AS-001: GitCliAdapter already implements isClean, getLocalHead
+    // FIND-AS-001: GitCliAdapter already implements isClean, getCurrentHead
     // and getRemoteUrl, exactly the surface ApplicationPreflightGitAdapter
     // needs, so the same certified adapter instance is reused rather than
     // constructing a second one.
@@ -852,25 +852,36 @@ export function createProductionFoundationReviewDependencies():
 // Nothing here reads an environment variable, a config file, or any
 // value left over from a previous run; a run with no matching argument
 // yields `undefined`, which runApplicationPreflight then fails closed on.
+//
+// FIND-AS-001 (independent review, blocker 2): exactly one occurrence of
+// this flag is accepted. Zero occurrences is the ordinary missing-input
+// case (fails closed downstream via APPLICATION_PREFLIGHT_SHA_MISSING).
+// Two or more occurrences — whether the values agree or conflict — is
+// ambiguous authority input and is refused the same way: do not select
+// the first, do not select the last, do not merge values, do not infer
+// intent. A caller that means to supply exactly one authority value
+// never has a legitimate reason to pass this flag twice.
 const AUTHORIZED_APPLICATION_SHA_FLAG =
   "--authorized-application-sha=" as const;
 
 export function readAuthorizedApplicationShaFromArgv(
   argv: readonly string[],
 ): string | undefined {
-  const flag =
-    argv.find(
+  const matches =
+    argv.filter(
       (arg) =>
         arg.startsWith(
           AUTHORIZED_APPLICATION_SHA_FLAG,
         ),
     );
 
-  return flag
-    ? flag.slice(
-        AUTHORIZED_APPLICATION_SHA_FLAG.length,
-      )
-    : undefined;
+  if (matches.length !== 1) {
+    return undefined;
+  }
+
+  return matches[0]!.slice(
+    AUTHORIZED_APPLICATION_SHA_FLAG.length,
+  );
 }
 
 export async function main():

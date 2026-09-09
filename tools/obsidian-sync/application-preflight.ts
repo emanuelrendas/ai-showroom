@@ -13,10 +13,13 @@
 export type ApplicationPreflightGitAdapter = {
   isClean: (repoPath: string) => Promise<boolean>;
 
-  getLocalHead: (
-    repoPath: string,
-    branch: string,
-  ) => Promise<string>;
+  // FIND-AS-001 (independent review, blocker 1): must return the ACTUAL
+  // checked-out commit (`git rev-parse HEAD`), not a branch ref tip. A
+  // branch-ref lookup (`refs/heads/<branch>`) can silently diverge from
+  // what is really checked out — e.g. a detached HEAD, or a worktree that
+  // is behind its own branch tip — which would let this preflight verify
+  // a commit that was never actually inspected.
+  getCurrentHead: (repoPath: string) => Promise<string>;
 
   getRemoteUrl: (repoPath: string) => Promise<string>;
 };
@@ -28,7 +31,6 @@ export type ApplicationPreflightRequest = {
   expectedApplicationSha: string | null | undefined;
 
   repoPath: string;
-  branch: string;
 
   // Expected GitHub repository identity, e.g. "emanuelrendas" / "ai-showroom".
   expectedOwner: string;
@@ -122,12 +124,9 @@ export async function runApplicationPreflight(
     };
   }
 
-  const localHead = await gitAdapter.getLocalHead(
-    request.repoPath,
-    request.branch,
-  );
+  const currentHead = await gitAdapter.getCurrentHead(request.repoPath);
 
-  if (localHead !== request.expectedApplicationSha) {
+  if (currentHead !== request.expectedApplicationSha) {
     return {
       ok: false,
       code: "APPLICATION_PREFLIGHT_HEAD_MISMATCH",
@@ -137,6 +136,6 @@ export async function runApplicationPreflight(
   return {
     ok: true,
     code: "APPLICATION_PREFLIGHT_VERIFIED",
-    verifiedApplicationSha: localHead,
+    verifiedApplicationSha: currentHead,
   };
 }
