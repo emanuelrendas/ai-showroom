@@ -111,6 +111,16 @@ function createHarness() {
       }),
     );
 
+  const applicationPreflightFn =
+    vi.fn(
+      async () => ({
+        ok: true,
+        code: "APPLICATION_PREFLIGHT_VERIFIED",
+        verifiedApplicationSha:
+          "279dd001c971f93036bac472b10669033311e24c",
+      }),
+    );
+
   const dependencies:
     FoundationReviewDependencies = {
     environment: {
@@ -135,6 +145,9 @@ function createHarness() {
     isolationAdapter: {},
     pullAdapter: {},
 
+    applicationGitAdapter: {},
+    applicationPreflightFn,
+
     executeMutationPipelineFn,
     executeLocalObsidianPullFn,
   };
@@ -147,6 +160,7 @@ function createHarness() {
     now,
     executeMutationPipelineFn,
     executeLocalObsidianPullFn,
+    applicationPreflightFn,
   };
 }
 
@@ -178,6 +192,88 @@ describe(
           harness
             .executeMutationPipelineFn,
         ).not.toHaveBeenCalled();
+      },
+    );
+
+    it(
+      "invokes the application preflight and blocks the mutation pipeline when it fails (FIND-AS-001)",
+      async () => {
+        const harness =
+          createHarness();
+
+        harness
+          .applicationPreflightFn
+          .mockResolvedValueOnce({
+            ok: false,
+            code: "APPLICATION_PREFLIGHT_HEAD_MISMATCH",
+          });
+
+        const result =
+          await runFoundationReview(
+            harness.dependencies,
+          );
+
+        expect(result).toEqual({
+          FINAL_VERDICT: "HOLD",
+          FAILURE_CODE:
+            "APPLICATION_PREFLIGHT_HEAD_MISMATCH",
+        });
+
+        expect(
+          harness
+            .applicationPreflightFn,
+        ).toHaveBeenCalledTimes(1);
+
+        expect(
+          harness
+            .executeMutationPipelineFn,
+        ).not.toHaveBeenCalled();
+      },
+    );
+
+    it(
+      "invokes the application preflight before the mutation pipeline on the successful path (FIND-AS-001)",
+      async () => {
+        const harness =
+          createHarness();
+
+        const result =
+          await runFoundationReview(
+            harness.dependencies,
+          );
+
+        expect(result).toEqual({
+          FINAL_VERDICT: "PASS",
+          FAILURE_CODE: null,
+        });
+
+        expect(
+          harness
+            .applicationPreflightFn,
+        ).toHaveBeenCalledTimes(1);
+
+        expect(
+          harness
+            .executeMutationPipelineFn,
+        ).toHaveBeenCalledTimes(1);
+
+        const preflightOrder =
+          harness
+            .applicationPreflightFn
+            .mock
+            .invocationCallOrder[0];
+
+        const mutationOrder =
+          harness
+            .executeMutationPipelineFn
+            .mock
+            .invocationCallOrder[0];
+
+        expect(
+          preflightOrder,
+        ).toBeLessThan(
+          mutationOrder as number,
+        );
       },
     );
 
