@@ -6,7 +6,8 @@
 **Canonical path:** `docs/superpowers/specs/2026-09-21-ai-showroom-v1-milestone-2-design.md`
 **Predecessor:** V1 Milestone 1 — Foundation (FROZEN), see `docs/acceptance/milestone-1.md`
 **Sovereign Architecture Decision:** Option A, Strict Scope, ratified by Emanuel Rendas 21 Sep 2026, 14:39 GST
-**Technical Review:** Adversarial review by Tiago (Lane AI Showroom), 21 Sep 2026, 15:25 GST. Sol's doctrine assessed by Emanuel as consensus-aligned with the Gate A–G baseline, no independent divergent parecer required. Final ratification by Emanuel Rendas, 21 Sep 2026, 15:25 GST.
+**Technical Review:** Adversarial review by Tiago (Lane AI Showroom), 21 Sep 2026, 15:25 GST. Sol's doctrine assessed by Emanuel as consensus-aligned with the Gate A–G baseline, no independent divergent parecer required. Final ratification by Emanuel Rendas, 21 Sep 2026, 15:25 GST. Cost ceiling closed, 21 Sep 2026, 15:36 GST. **Design phase CLOSED, no open items remaining. Implementation authorized.**
+**Implementation Writer:** Tiago (Lane AI Showroom), One Writer, per Decision H. Target branch `feature/milestone-2-single-model`, cut from audited commit `9929a032b0b77499943b3ab2aa0b58f150dc9bd7`.
 
 ---
 
@@ -184,7 +185,9 @@ Amended per Tiago's adversarial review, ratified 21 Sep 2026. The `inference_log
    - `CREATE INDEX idx_inference_logs_workspace_created ON inference_logs(workspace_id, created_at DESC);`
 4. **Retention:** monthly partitioning, declarative by `created_at`, to prevent unbounded disk growth on the operational Supabase project.
 5. This table is queryable by workspace administrators for cost review.
-6. **Open item, still needs a number from Emanuel:** no cost ceiling or budget alert threshold is defined. Acceptance is not final until a budget figure or an explicit "no ceiling for this milestone" decision is recorded.
+6. **Cost ceiling, ratified by Emanuel Rendas, 21 Sep 2026, 15:36 GST:**
+   - **Per-inference ceiling:** maximum $0.02 USD (`20_000` micros USD) per call. The `InferenceExecutionWrapper` (Section 3.3.2) aborts or rejects any call projected to exceed this ceiling based on its token profile before dispatching to the provider, and records the rejection to `inference_logs` with `status: refused`, never a silent skip.
+   - **Bancada budget for Milestone 2:** $20.00 USD accumulated, tracked by summing `cost_usd_micros` in `inference_logs` for the milestone's test/bancada Supabase project. This is a development-phase ceiling, not a production runtime limit, and does not itself constitute an acceptance criterion beyond what Section 5 already states.
 
 ---
 
