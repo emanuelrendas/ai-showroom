@@ -14,6 +14,79 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_inference_logs: {
+        Row: {
+          completion_tokens: number | null
+          cost_usd_micros: number | null
+          created_at: string
+          failure_reason: string | null
+          id: string
+          latency_ms: number
+          mission_id: string
+          model_identifier: string | null
+          project_id: string
+          prompt_tokens: number | null
+          status: string
+          task_type: string
+          total_tokens: number | null
+          workspace_id: string
+        }
+        Insert: {
+          completion_tokens?: number | null
+          cost_usd_micros?: number | null
+          created_at?: string
+          failure_reason?: string | null
+          id?: string
+          latency_ms: number
+          mission_id: string
+          model_identifier?: string | null
+          project_id: string
+          prompt_tokens?: number | null
+          status: string
+          task_type: string
+          total_tokens?: number | null
+          workspace_id: string
+        }
+        Update: {
+          completion_tokens?: number | null
+          cost_usd_micros?: number | null
+          created_at?: string
+          failure_reason?: string | null
+          id?: string
+          latency_ms?: number
+          mission_id?: string
+          model_identifier?: string | null
+          project_id?: string
+          prompt_tokens?: number | null
+          status?: string
+          task_type?: string
+          total_tokens?: number | null
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_inference_logs_mission_id_fkey"
+            columns: ["mission_id"]
+            isOneToOne: false
+            referencedRelation: "missions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_inference_logs_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_inference_logs_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       conversations: {
         Row: {
           created_at: string
