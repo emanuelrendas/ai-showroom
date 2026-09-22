@@ -10,7 +10,7 @@ import { generateMissionAiDraft } from "./generate-mission-ai-draft";
 import { InferenceExecutionWrapper, TASK_TYPES, type TaskType } from "./inference-wrapper";
 import { SupabaseInferenceLogWriter } from "./inference-log-supabase-adapter";
 import { SupabaseMissionAiDraftWriter } from "./mission-ai-draft-writer";
-import { getModelProviderAdapter, getPromptTemplates } from "./provider";
+import { getCostEstimator, getModelProviderAdapter, getPromptTemplates } from "./provider";
 
 export type MissionAiDraftActionState = {
   error: string | null;
@@ -63,6 +63,7 @@ export async function generateMissionAiDraftAction(
     provider: getModelProviderAdapter(),
     promptTemplates: getPromptTemplates(),
     inferenceLogger: new SupabaseInferenceLogWriter(supabase),
+    costEstimator: getCostEstimator(),
   });
 
   const result = await generateMissionAiDraft(
