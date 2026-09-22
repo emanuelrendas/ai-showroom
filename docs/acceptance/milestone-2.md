@@ -29,7 +29,7 @@ Only mark an item complete when supported by manual, automated, database, or adv
 - [x] Fail-closed behavior proven under three conditions: model timeout, malformed model output, and rate limit response. Each produces an honest `status: failed` record, none fabricates success.
 - [x] `ai_inference_logs` schema matches Section 6 exactly: foreign keys, indices, `cost_usd_micros` as bigint, monthly partitioning by `created_at`. **Executed 22 Sep 2026: applied via `supabase db reset` against real Postgres; partitions `ai_inference_logs_2026_09`/`ai_inference_logs_2026_10` materialized and confirmed via direct SQL.**
 - [ ] `npm test`, `npm run test:rls`, `npm run test:e2e`, `npm run typecheck`, `npm run lint`, `npm run build` all pass. **`test:rls` now passes (see below); `test:e2e` still not run.**
-- [ ] Supabase security advisors show no new finding introduced by this milestone.
+- [ ] Supabase security advisors show no new finding introduced by this milestone. **`supabase db lint --local` is clean (see below) — genuine schema-level evidence, but not the full advisor check (Auth/platform-level findings, e.g. Milestone 1's "Leaked Password Protection Disabled", aren't covered by a local schema lint). Left unchecked until the actual advisor pass runs.**
 - [x] No Milestone 3 or later functionality, multi-model routing, Council Mode, agents, is present or reachable.
 - [x] Green List or `raioc-os` coupling absent, verified by dependency and import search across the codebase, not by assertion.
 
@@ -124,9 +124,26 @@ EXIT_CODE:0
 
 Getting here required two live-execution fixes beyond the original hand-reviewed migrations: applying the migrations that a stale local Docker volume had silently skipped (`supabase migration up`, then a full `supabase db reset` to verify from a clean slate), and the `REVOKE` fix above. Also required pointing `.env.test.local` at the local Docker instance (`http://127.0.0.1:54321`) instead of the value it held before this session, which was the **hosted production project** (`yljvselkecxdfrqwyums`) — a real near-miss caught and stopped before any request could complete; see `docs/acceptance/d3-ti-01-local-supabase-runbook.md` for why that project must never be a test target. `.env.test.local` is gitignored; this change is local-only and was never committed.
 
-### Supabase security advisors (unchecked)
+### Supabase security advisors (unchecked, partial schema-lint evidence)
 
-No Supabase project was linked/reachable in this environment. No advisor report has been pulled.
+**Run 22 Sep 2026** against the local Docker instance:
+
+```text
+supabase db lint --local
+
+Connecting to local database...
+Linting schema: extensions
+Linting schema: private
+Linting schema: public
+
+No schema errors found
+{"results":[],"message":"db lint"}
+EXIT_CODE:0
+```
+
+Zero warnings or errors across `extensions`, `private`, and `public` — the latter two covering every object this milestone introduced: `ai_inference_logs`, `mission_ai_drafts`, both HITL/append-only trigger functions, the `approve_mission_ai_draft` RPC, and the partition-provisioning helper.
+
+This is real, genuine evidence, but it is **not** the same thing Section 5 asks for. `supabase db lint` is a static SQL/schema linter (missing indexes, RLS-enabled-without-policy, `SECURITY DEFINER` search-path issues, and similar). The "Supabase security advisors" this criterion names are a broader check — surfaced via the Studio/dashboard or a linked project — that also covers Auth and platform-level configuration (Milestone 1's own acceptance record shows an example: "Leaked Password Protection Disabled", an Auth setting no schema linter would ever catch). No project is linked in this environment to run that broader advisor pass, so this criterion stays unchecked rather than being marked done on partial evidence.
 
 ### No Milestone 3+ functionality (checked)
 
@@ -161,7 +178,7 @@ npm.cmd run test:e2e
 
 Still needed:
 
-- A Supabase advisor pass against the local instance (or a dedicated bancada project) showing no new finding introduced by either migration.
+- The full Supabase advisor pass (Auth/platform-level, not just schema lint — see above) against a linked project, showing no new finding introduced by either migration.
 - A real (even if placeholder-cost) `ModelProviderAdapter` decision, so `npm run test:e2e` can exercise the actual Generate -> Approve/Dismiss flow instead of stopping at `MODEL_PROVIDER_NOT_CONFIGURED`.
 - A decision on whether to audit Milestone 1's tables for the same default-privilege gap (see above).
 
