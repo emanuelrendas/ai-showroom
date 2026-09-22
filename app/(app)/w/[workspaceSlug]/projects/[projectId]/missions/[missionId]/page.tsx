@@ -1,5 +1,6 @@
 ﻿import { notFound } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
+import { MissionAiDraftsPanel } from "@/features/ai/mission-ai-drafts-panel";
 import { getMissionById } from "@/features/missions/queries";
 import { getProjectById } from "@/features/projects/queries";
 import { getWorkspaceBySlug } from "@/features/workspaces/queries";
@@ -75,6 +76,12 @@ export default async function MissionPage({
           </p>
         </div>
       </section>
+
+      <MissionAiDraftsPanel
+        workspaceSlug={workspaceSlug}
+        projectId={projectId}
+        missionId={missionId}
+      />
     </div>
   );
 }

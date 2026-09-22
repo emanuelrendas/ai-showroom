@@ -7,7 +7,7 @@ import { getWorkspaceBySlug } from "@/features/workspaces/queries";
 import { createClient } from "@/lib/supabase/server";
 import { approveMissionAiDraft, dismissMissionAiDraft } from "./draft-mutations";
 import { generateMissionAiDraft } from "./generate-mission-ai-draft";
-import { InferenceExecutionWrapper, type TaskType } from "./inference-wrapper";
+import { InferenceExecutionWrapper, TASK_TYPES, type TaskType } from "./inference-wrapper";
 import { SupabaseInferenceLogWriter } from "./inference-log-supabase-adapter";
 import { SupabaseMissionAiDraftWriter } from "./mission-ai-draft-writer";
 import { getModelProviderAdapter, getPromptTemplates } from "./provider";
@@ -21,9 +21,22 @@ export async function generateMissionAiDraftAction(
   workspaceSlug: string,
   projectId: string,
   missionId: string,
-  taskType: TaskType,
-  promptContext: string,
+  _prevState: MissionAiDraftActionState,
+  formData: FormData,
 ): Promise<MissionAiDraftActionState> {
+  const rawTaskType = formData.get("task_type");
+  const promptContext = formData.get("prompt_context");
+
+  if (
+    typeof rawTaskType !== "string" ||
+    !(TASK_TYPES as readonly string[]).includes(rawTaskType) ||
+    typeof promptContext !== "string"
+  ) {
+    return { error: "Choose a task type and enter a prompt." };
+  }
+
+  const taskType = rawTaskType as TaskType;
+
   const workspace = await getWorkspaceBySlug(workspaceSlug);
   const project = await getProjectById(projectId);
   const mission = await getMissionById(missionId);
