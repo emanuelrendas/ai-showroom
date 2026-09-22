@@ -179,5 +179,12 @@ with check (
   and approved_at is null
 );
 
+-- Explicit REVOKE, not just an absent GRANT: this Supabase project's default
+-- privileges give anon/authenticated ALL DML on every new public table
+-- (verified directly against a real local instance). DELETE is never
+-- intended here -- drafts are dismissed via status, never physically
+-- removed -- so it must be revoked explicitly, the same reasoning applied to
+-- ai_inference_logs.
+revoke all on public.mission_ai_drafts from anon, authenticated;
 grant usage on schema public to authenticated;
 grant select, insert, update on public.mission_ai_drafts to authenticated;

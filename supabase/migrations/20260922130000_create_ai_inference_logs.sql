@@ -137,8 +137,17 @@ with check (
   )
 );
 
--- No update/delete grant at all: belt-and-suspenders alongside the triggers
--- above, mirroring the existing append-only posture already used for
--- public.messages (`grant select, insert` only, no update/delete).
+-- Explicit REVOKE, not just an absent GRANT: this Supabase project's default
+-- privileges give anon/authenticated ALL DML on every new public table
+-- (verified directly against a real local instance -- `grant select, insert`
+-- alone is additive and does NOT remove that pre-existing UPDATE/DELETE
+-- grant). Without this REVOKE, an authenticated UPDATE/DELETE against a row
+-- it can otherwise SELECT would still be blocked, but only by the absence of
+-- an UPDATE/DELETE RLS policy (a silent 0-rows-affected no-op), not by a real
+-- permission-denied error -- a much weaker guarantee that a future UPDATE/
+-- DELETE policy added without care could accidentally undo. Belt-and-
+-- suspenders alongside the append-only triggers above, mirroring the
+-- append-only posture already used for public.messages.
+revoke all on public.ai_inference_logs from anon, authenticated;
 grant usage on schema public to authenticated;
 grant select, insert on public.ai_inference_logs to authenticated;

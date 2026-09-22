@@ -171,16 +171,29 @@ describe("ai_inference_logs — persistence, RLS, and append-only enforcement", 
   afterAll(async () => {
     // Intentionally does not delete the workspace/project/mission: once an
     // ai_inference_logs row exists against them, ON DELETE RESTRICT (see the
-    // migration) makes that deletion fail by design. Only the temporary Auth
-    // users are cleaned up; the workspace is left behind in this disposable
-    // test project.
+    // migration) makes that deletion fail by design. The workspace is left
+    // behind in this disposable test project.
+    //
+    // Consequence: deleting the owner's Auth user cascades to their `profiles`
+    // row, but `workspaces.created_by` still references that profile (no
+    // cascade on that FK either), so the delete is rejected. This is not a
+    // bug to work around -- it is the immutable-audit-trail guarantee (the
+    // append-only trigger plus RESTRICT) holding even against test cleanup.
+    // Caught and logged, not swallowed silently and not re-thrown: a failed
+    // cleanup here is expected for the owner specifically, not a signal that
+    // something is wrong.
     for (const userId of [ownerId, memberId, outsiderId]) {
       if (!userId) continue;
 
-      const { error } = await admin.auth.admin.deleteUser(userId);
-
-      if (error) {
-        throw new Error(`Unable to clean up temporary Auth user: ${error.message}`);
+      try {
+        const { error } = await admin.auth.admin.deleteUser(userId);
+        if (error) throw new Error(error.message);
+      } catch (error) {
+        console.warn(
+          `Expected cleanup residue: unable to delete temporary Auth user ${userId} ` +
+            `(likely the workspace owner, blocked by ai_inference_logs' RESTRICT + ` +
+            `append-only guarantee): ${error instanceof Error ? error.message : error}`,
+        );
       }
     }
   });
