@@ -1,8 +1,8 @@
 # V1 Milestone 2 - Acceptance Checklist
 
 **Milestone:** Single-Model AI
-**Release state:** Candidate - real end-to-end HITL cycle verified with a live Gemini call against local Postgres; `test:e2e` and the full Supabase advisor pass still open
-**Report date:** 22 September 2026 (updated same day after a real browser Generate -> Approve run)
+**Release state:** Candidate - real end-to-end HITL cycle verified manually with a live Gemini call against local Postgres; automated `test:e2e` written but blocked by an upstream Next.js/Turbopack dev-server bug (see below); full Supabase advisor pass (Auth-category) still open
+**Report date:** 22 September 2026 (updated same day: local Security/Performance advisor detail, a real hydration bug fixed via E2E testing, and the Turbopack blocker documented)
 **Design document:** `docs/superpowers/specs/2026-09-21-ai-showroom-v1-milestone-2-design.md`
 
 Only mark an item complete when supported by manual, automated, database, or advisor evidence, per the same discipline `docs/acceptance/milestone-1.md` already established. Ten of the twelve Section 5 criteria have that evidence today; two do not yet, and are left unchecked rather than asserted.
@@ -166,26 +166,37 @@ EXIT_CODE:0
 
 Getting here required two live-execution fixes beyond the original hand-reviewed migrations: applying the migrations that a stale local Docker volume had silently skipped (`supabase migration up`, then a full `supabase db reset` to verify from a clean slate), and the `REVOKE` fix above. Also required pointing `.env.test.local` at the local Docker instance (`http://127.0.0.1:54321`) instead of the value it held before this session, which was the **hosted production project** (`yljvselkecxdfrqwyums`) — a real near-miss caught and stopped before any request could complete; see `docs/acceptance/d3-ti-01-local-supabase-runbook.md` for why that project must never be a test target. `.env.test.local` is gitignored; this change is local-only and was never committed.
 
-### Supabase security advisors (unchecked, partial schema-lint evidence)
+### Supabase security advisors (unchecked, full local Security + Performance advisor evidence)
 
-**Run 22 Sep 2026** against the local Docker instance:
+**Run 22 Sep 2026** two ways against the local Docker instance, per explicit instruction to stay strictly local (no disposable cloud project authorized): `supabase db lint --local` (CLI), and the local Studio's actual Security Advisor / Performance Advisor pages (`http://127.0.0.1:54323/project/default/advisors/{security,performance}`), read directly from the same `run-lints` API call those pages make (`http://127.0.0.1:54323/api/platform/projects/default/run-lints`), not by eyeballing the rendered UI.
 
 ```text
 supabase db lint --local
-
-Connecting to local database...
-Linting schema: extensions
-Linting schema: private
-Linting schema: public
-
-No schema errors found
-{"results":[],"message":"db lint"}
-EXIT_CODE:0
+-> No schema errors found, {"results":[],"message":"db lint"}, EXIT_CODE:0
 ```
 
-Zero warnings or errors across `extensions`, `private`, and `public` — the latter two covering every object this milestone introduced: `ai_inference_logs`, `mission_ai_drafts`, both HITL/append-only trigger functions, the `approve_mission_ai_draft` RPC, and the partition-provisioning helper.
+The Studio pages report non-zero counts the bare CLI summary doesn't surface (0 errors / 1 warning / 2 info for Security; 0 / 0 / 16 for Performance) — here is every one of the 19 findings, in full, not just the counts:
 
-This is real, genuine evidence, but it is **not** the same thing Section 5 asks for. `supabase db lint` is a static SQL/schema linter (missing indexes, RLS-enabled-without-policy, `SECURITY DEFINER` search-path issues, and similar). The "Supabase security advisors" this criterion names are a broader check — surfaced via the Studio/dashboard or a linked project — that also covers Auth and platform-level configuration (Milestone 1's own acceptance record shows an example: "Leaked Password Protection Disabled", an Auth setting no schema linter would ever catch). No project is linked in this environment to run that broader advisor pass, so this criterion stays unchecked rather than being marked done on partial evidence.
+**Security (3 findings, 0 errors):**
+
+| Level | Finding | Detail |
+|---|---|---|
+| INFO | `rls_enabled_no_policy` | `public.ai_inference_logs_2026_09` has RLS enabled, no policies exist |
+| INFO | `rls_enabled_no_policy` | `public.ai_inference_logs_2026_10` has RLS enabled, no policies exist |
+| WARN | `authenticated_security_definer_function_executable` | `public.approve_mission_ai_draft(p_draft_id uuid)` is `SECURITY DEFINER` and executable by `authenticated` via `/rest/v1/rpc/approve_mission_ai_draft` |
+
+Both are **expected, not regressions**:
+- The two `rls_enabled_no_policy` findings are on the monthly *partitions* of `ai_inference_logs`, not the parent table. Policies are defined once, on the parent (Section 4.4/6 migrations); Postgres RLS resolves policy from the table named in the query, and no client (PostgREST/Supabase-js) ever addresses a partition by name directly -- only `public.ai_inference_logs`. A partition with RLS enabled and no policy of its own defaults to zero access for every non-owner role, which is fail-closed, not a hole. The advisor doesn't model parent-policy inheritance for partitions, so it flags this as informational on every partition, every month, going forward -- worth knowing, not worth fixing.
+- The `SECURITY DEFINER` warning is exactly the deliberate design from the Section 4.4 anti-spoofing decision: `approve_mission_ai_draft` must be `SECURITY DEFINER`, callable by `authenticated`, specifically so it can bypass the deliberately-restrictive `mission_ai_drafts_update_member` RLS policy that blocks direct client writes to `approved_by`/`approved_at`/`applied`. The function does its own authorization inside the body (`auth.uid()` check, `is_workspace_member`, `status = 'pending_review'` check) rather than relying on the caller's RLS context, which is precisely the pattern this advisor is designed to flag for manual confirmation ("is this intentional?") -- it is. `create_workspace_with_owner` (Milestone 1) does not trigger this warning because it is `SECURITY INVOKER`, not `SECURITY DEFINER`; the two functions are architecturally different on purpose.
+
+**Performance (16 findings, all INFO, all `unindexed_foreign_keys`):** 6 are new, introduced by this milestone's two tables; 10 pre-exist from Milestone 1 and were already known and accepted (`docs/acceptance/milestone-1.md`: "Fresh performance advisor review showed INFO-level unindexed foreign-key recommendations. No schema change is being introduced during Task 8 solely to silence performance advisories.") -- Milestone 2's contribution is the same category of finding on the same established, already-accepted basis, not a new pattern:
+
+- `ai_inference_logs` / `ai_inference_logs_2026_09` / `ai_inference_logs_2026_10` -- `project_id` FK, no covering index (×3)
+- `mission_ai_drafts` -- `approved_by`, `created_by`, `project_id` FKs, no covering index (×3)
+
+No error-level finding, in either category, anywhere in the schema.
+
+**What this is not:** still not the full "Supabase security advisors" check Section 5 names. Milestone 1's own acceptance record shows a finding this local pass structurally cannot produce -- "Leaked Password Protection Disabled" is an Auth/GoTrue service-configuration check, not a SQL schema lint, and the `run-lints` response here contains zero entries outside the `SECURITY`/`PERFORMANCE` categories (no `AUTH` category at all). This is now confirmed empirically, not just argued: the same lint engine that found real, specific findings about this milestone's own tables genuinely has no visibility into Auth-service configuration locally. Per explicit instruction, no disposable cloud project was created to close that specific gap -- this criterion stays unchecked, with the most complete local evidence available now on record instead of a bare pass/fail summary.
 
 ### No Milestone 3+ functionality (checked)
 
@@ -214,6 +225,8 @@ grep -rn "fetch(|axios|http://|https://" features/ai/
 - **~~No real browser session exercised against live data.~~ Resolved 22 Sep 2026.** A real signed-in session, on `npm run dev`, generated and approved a draft through the actual UI against the local Supabase instance and a real `gemini-3.6-flash` call -- see "Model call against a real provider" above. `npm run test:e2e` (automated Playwright) is a separate, still-open item -- this was manual, not scripted.
 - **Default-privilege drift across the schema, beyond just the two new tables.** The `ai_inference_logs`/`mission_ai_drafts` grant gap this session found and fixed (see above) is a property of this Supabase project's default privileges, not of those two migrations specifically. Whether the same implicit over-grant exists on Milestone 1's own tables was not audited as part of this pass — out of scope here since Milestone 1 is FROZEN, but worth a dedicated look before assuming its `grant select, insert, update, delete` lines are the *only* privileges those tables carry.
 - **Both `.env.test.local` and `.env.local` pointed at the hosted production project before this session.** `.env.test.local` was caught and fixed before the first `test:rls` run. `.env.local` -- the file `npm run dev` actually reads -- was caught separately, immediately before the manual browser verification above, the same way: re-checked fresh, found still pointing at `yljvselkecxdfrqwyums.supabase.co`, corrected to `http://127.0.0.1:54321` before the dev server was ever started. Both files are gitignored; both were pre-existing states on this machine, not something introduced by Milestone 2. Worth checking whether other machines/checkouts have the same misconfiguration, and worth asking why the default local checkout points at production at all.
+- **Real hydration bug found and fixed via E2E testing, 22 Sep 2026.** `MissionAiDraftCard`'s "Approved <timestamp>" line called `new Date(...).toLocaleString()` with no explicit locale. Node's server-side default locale (`9/22/2026, 5:52:51 PM`) rendered differently from the browser's (`22/09/2026, 5:52:51 PM`), producing a genuine SSR/client hydration mismatch caught only because a real browser loaded the real page -- no unit test could have found this. Fixed by pinning an explicit locale (`toLocaleString("en-GB")`) so server and client always agree.
+- **`npm run test:e2e` for this flow is written but cannot complete in this dev environment right now -- a reproducible upstream Next.js 16.3.3 + Turbopack bug, not an application bug.** Three independent attempts (each against a freshly-restarted `npm run dev`) all crashed the dev server with the same `RangeError: Map maximum size exceeded` inside Turbopack's async-hooks instrumentation (`AsyncHook.init`, inside `node_modules/next/dist/compiled/next-server/app-page-turbo.runtime.dev.js`), triggered specifically by `useActionState` -- the hook every form in this app uses (`CreateWorkspaceForm`, `CreateProjectForm`, `CreateMissionForm`, `GenerateDraftForm`). All three crashes happened right after the 2nd `useActionState` submission in the same server process (~42s each, itself abnormally slow and likely the leak becoming visible before the hard crash), consistently, regardless of server freshness. This is not specific to Milestone 2 code or to the Gemini integration -- it is a property of chaining multiple `useActionState`-bound Server Action submissions in one Turbopack dev session, and would eventually affect Milestone 1's own multi-step form flow too under the same conditions. The manual browser verification above (real Gemini call, real Approve, real DB rows) remains the standing proof this milestone's actual HITL flow works; automated Playwright coverage is ready (`tests/e2e/milestone-2-hitl.spec.ts`) and will run once this environment issue is resolved -- a Next.js/Turbopack version decision, or a dev-mode config change (e.g. disabling Turbopack for `next dev`), that needs sign-off before being made, since it touches how the whole app runs in development, not just this feature.
 
 ## Pending Final Gate
 
@@ -225,8 +238,8 @@ npm.cmd run test:e2e
 
 Still needed:
 
-- The full Supabase advisor pass (Auth/platform-level, not just schema lint — see above) against a linked project, showing no new finding introduced by either migration.
-- Automated `npm run test:e2e` coverage of the Generate -> Approve/Dismiss flow (the manual pass above proves it works; it does not replace a repeatable automated test).
+- The full Supabase advisor pass (Auth/platform-level, not just schema lint — see above) against a linked project, showing no new finding introduced by either migration. Local Security + Performance advisors are now fully documented above; only the Auth-config category remains genuinely out of reach locally.
+- Resolving the Next.js 16.3.3 Turbopack `useActionState` crash (see above) so `tests/e2e/milestone-2-hitl.spec.ts` (already written) can actually run and pass.
 - A decision on whether to audit Milestone 1's tables for the same default-privilege gap (see above).
 
 ## Milestone Boundary

@@ -105,7 +105,12 @@ export function MissionAiDraftCard({
 
         {draft.status === "applied" && (
           <p className="mt-4 text-xs text-neutral-500">
-            Approved {draft.approved_at ? new Date(draft.approved_at).toLocaleString() : ""}
+            {/* Fixed locale, not the runtime's default: toLocaleString() with
+                no locale argument renders differently on the server (Node's
+                default locale) than in the browser, which is a real
+                hydration mismatch caught during E2E testing (22 Sep 2026). */}
+            Approved{" "}
+            {draft.approved_at ? new Date(draft.approved_at).toLocaleString("en-GB") : ""}
           </p>
         )}
       </CardContent>
