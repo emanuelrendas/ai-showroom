@@ -46,17 +46,25 @@ This record preserves implementation evidence outside the immutable ratified des
 
 ### Append-only telemetry trigger
 
-- **Current implementation:** unconditional `BEFORE UPDATE` and `BEFORE DELETE` rejection on `ai_inference_logs`, with client UPDATE/DELETE privileges also revoked.
+- **Current implementation:** unconditional `BEFORE UPDATE` and `BEFORE DELETE` rejection on `inference_logs`, with client UPDATE/DELETE privileges also revoked.
 - **Effect:** strengthens telemetry integrity beyond the canonical minimum and interacts with FK deletion behavior.
 - **Class boundary:** no change to the human-approval architecture was identified, so this remains Class B unless Control Tower finds a Class C dependency.
 - **Decision:** RATIFIED BY TIAGO UNDER PART 18 on 24 September 2026. Preserve the database rejection triggers and revoked client mutation privileges.
 
-### `ai_inference_logs` naming
+### `inference_logs` naming conformance
 
-- **Current implementation:** `ai_inference_logs`; canonical name: `inference_logs`.
-- **Affected surfaces:** table and partition names, the canonical `idx_inference_logs_mission` / `idx_inference_logs_workspace_created` index names (currently `idx_ai_*`), partition helper, triggers, policies, generated database types, Supabase adapter, unit/RLS/E2E tests, and acceptance evidence.
-- **Safety classification:** a coordinated rename is bounded canonical conformance rather than architecture expansion. Before any non-disposable deployment, it can be performed by changing the branch migration and all references. If the migration has reached any persistent environment, use a forward rename migration instead of rewriting applied history.
+- **Current implementation:** canonical `inference_logs` is used by the application, generated database types, unit/RLS/E2E tests, and accounting evidence. A forward migration renames the parent table, all extant monthly partitions, constraints, `idx_inference_logs_mission`, `idx_inference_logs_workspace_created`, the partition helper, mutation-rejection function, triggers, and RLS policies.
+- **Affected surfaces:** M2 inference telemetry only. The Class-C `mission_ai_drafts` architecture and the ratified canonical design document are unchanged.
+- **Safety classification:** bounded canonical conformance rather than architecture expansion.
 - **Decision:** RATIFIED BY TIAGO UNDER PART 18 on 24 September 2026. Conform the table and associated telemetry objects to canonical `inference_logs` naming before M2 release. Migration method must fail closed: rewrite only if repository/environment evidence proves the existing migration never reached a persistent environment; otherwise use a forward rename migration.
+
+#### Migration strategy and verification status
+
+- **Selected method:** forward rename migration, `supabase/migrations/20260924124625_rename_ai_inference_logs_to_inference_logs.sql`.
+- **Evidence:** the original telemetry migration is committed only on the feature branch, but this checkout contains Supabase linked-project metadata. Repository history cannot exclude manual application to a persistent environment, so local-only/disposable use is not proved and rewriting migration history is forbidden by the fail-closed rule.
+- **Preserved history:** `20260922130000_create_ai_inference_logs.sql` and `20260922140000_create_mission_ai_drafts.sql` remain unchanged.
+- **Static verification:** application/test references and generated types use `inference_logs`; canonical index names and dynamic partition renaming are present in the forward migration; cost/refusal/failure logic is outside the rename blast radius and unchanged. Four targeted telemetry/schema/application unit files passed (`32/32`), typecheck passed, and lint reported zero errors (six unrelated existing warnings). The full unit run passed `302/304`; its only failures were two unrelated Obsidian runner tests whose spawned `tsx` process stopped in Node `os.userInfo()` with `uv_os_get_passwd returned ENOMEM` before test logic.
+- **Database replay gap:** on 24 September 2026, the local endpoint was configured for loopback, but `supabase migration list --local` returned connection refused at `127.0.0.1:54322`, and `supabase start` failed because the Docker Desktop Linux engine pipe did not exist. No hosted or linked project was queried or mutated as a substitute. Local migration replay, catalog inspection, and RLS execution remain required before the Section 6 acceptance item can be checked.
 
 ## $20 Bancada Tracking
 
@@ -68,7 +76,7 @@ select
   20000000::bigint as budget_usd_micros,
   20000000::bigint - coalesce(sum(cost_usd_micros), 0)::bigint
     as remaining_budget_usd_micros
-from public.ai_inference_logs;
+from public.inference_logs;
 ```
 
 `20,000,000` micros USD equals `$20.00`. This is a development-phase accounting query for the isolated bancada environment, not an autonomous production blocking policy.

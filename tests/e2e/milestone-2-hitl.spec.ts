@@ -140,7 +140,7 @@ test("Milestone 2 HITL browser journey with a real Gemini call", async ({ page }
       timeout: 15_000,
     });
   } finally {
-    // ai_inference_logs uses ON DELETE RESTRICT (Section 6.1) -- once a real
+    // inference_logs uses ON DELETE RESTRICT (Section 6.1) -- once a real
     // inference call is logged against this workspace, deleting it (and the
     // owner's Auth user, which cascades toward it) is expected to fail. That
     // is the immutable-audit-trail guarantee holding, not a bug. Caught and
@@ -173,7 +173,7 @@ test("Milestone 2 HITL browser journey with a real Gemini call", async ({ page }
         if (deleteUserResult.error) throw new Error(deleteUserResult.error.message);
       } catch (error) {
         console.warn(
-          `Expected cleanup residue (ai_inference_logs RESTRICT + append-only guarantee): ` +
+          `Expected cleanup residue (inference_logs RESTRICT + append-only guarantee): ` +
             `${error instanceof Error ? error.message : error}`,
         );
       }

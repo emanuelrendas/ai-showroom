@@ -2,6 +2,8 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
+// Canonical Section 6 telemetry boundary: public.inference_logs.
+
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 const secretKey = process.env.SUPABASE_SECRET_KEY;
@@ -92,7 +94,7 @@ function validLogPayload() {
   };
 }
 
-describe("ai_inference_logs — persistence, RLS, and append-only enforcement", () => {
+describe("inference_logs — persistence, RLS, and append-only enforcement", () => {
   beforeAll(async () => {
     ownerId = await createTemporaryUser(ownerEmail);
     memberId = await createTemporaryUser(memberEmail);
@@ -132,7 +134,7 @@ describe("ai_inference_logs — persistence, RLS, and append-only enforcement", 
       .insert({
         workspace_id: workspaceId,
         name: `AI Log Project ${runId}`,
-        description: "Temporary project for ai_inference_logs verification.",
+        description: "Temporary project for inference_logs verification.",
         created_by: ownerId,
       })
       .select("id")
@@ -151,7 +153,7 @@ describe("ai_inference_logs — persistence, RLS, and append-only enforcement", 
       .insert({
         project_id: projectId,
         title: `AI Log Mission ${runId}`,
-        description: "Temporary mission for ai_inference_logs verification.",
+        description: "Temporary mission for inference_logs verification.",
         status: "todo",
         priority: "medium",
         created_by: ownerId,
@@ -170,7 +172,7 @@ describe("ai_inference_logs — persistence, RLS, and append-only enforcement", 
 
   afterAll(async () => {
     // Intentionally does not delete the workspace/project/mission: once an
-    // ai_inference_logs row exists against them, ON DELETE RESTRICT (see the
+    // inference_logs row exists against them, ON DELETE RESTRICT (see the
     // migration) makes that deletion fail by design. The workspace is left
     // behind in this disposable test project.
     //
@@ -191,7 +193,7 @@ describe("ai_inference_logs — persistence, RLS, and append-only enforcement", 
       } catch (error) {
         console.warn(
           `Expected cleanup residue: unable to delete temporary Auth user ${userId} ` +
-            `(likely the workspace owner, blocked by ai_inference_logs' RESTRICT + ` +
+            `(likely the workspace owner, blocked by inference_logs' RESTRICT + ` +
             `append-only guarantee): ${error instanceof Error ? error.message : error}`,
         );
       }
@@ -202,14 +204,14 @@ describe("ai_inference_logs — persistence, RLS, and append-only enforcement", 
     // No .select() here: RETURNING is itself subject to the table's SELECT
     // policy (admin-only, see below), so a plain member's insert would
     // otherwise look like it silently returned zero rows despite succeeding.
-    const result = await memberClient.from("ai_inference_logs").insert(validLogPayload());
+    const result = await memberClient.from("inference_logs").insert(validLogPayload());
 
     expect(result.error).toBeNull();
   });
 
   it("lets the workspace owner locate the inserted row by its unique marker", async () => {
     const result = await ownerClient
-      .from("ai_inference_logs")
+      .from("inference_logs")
       .select("id")
       .eq("model_identifier", modelIdentifierMarker)
       .single();
@@ -221,27 +223,27 @@ describe("ai_inference_logs — persistence, RLS, and append-only enforcement", 
   });
 
   it("blocks an outsider from inserting a log row for a foreign workspace", async () => {
-    const result = await outsiderClient.from("ai_inference_logs").insert(validLogPayload());
+    const result = await outsiderClient.from("inference_logs").insert(validLogPayload());
 
     expect(result.error).not.toBeNull();
   });
 
   it("allows a workspace owner (admin role) to read the log row", async () => {
-    const result = await ownerClient.from("ai_inference_logs").select("id").eq("id", logId);
+    const result = await ownerClient.from("inference_logs").select("id").eq("id", logId);
 
     expect(result.error).toBeNull();
     expect(result.data).toHaveLength(1);
   });
 
   it("hides the log row from a plain member (select is admin-only, per Section 6.5)", async () => {
-    const result = await memberClient.from("ai_inference_logs").select("id").eq("id", logId);
+    const result = await memberClient.from("inference_logs").select("id").eq("id", logId);
 
     expect(result.error).toBeNull();
     expect(result.data).toHaveLength(0);
   });
 
   it("hides the log row from an outsider entirely", async () => {
-    const result = await outsiderClient.from("ai_inference_logs").select("id").eq("id", logId);
+    const result = await outsiderClient.from("inference_logs").select("id").eq("id", logId);
 
     expect(result.error).toBeNull();
     expect(result.data).toHaveLength(0);
@@ -249,7 +251,7 @@ describe("ai_inference_logs — persistence, RLS, and append-only enforcement", 
 
   it("rejects an UPDATE from the workspace owner (no grant, and the append-only trigger)", async () => {
     const result = await ownerClient
-      .from("ai_inference_logs")
+      .from("inference_logs")
       .update({ status: "failed" })
       .eq("id", logId);
 
@@ -257,14 +259,14 @@ describe("ai_inference_logs — persistence, RLS, and append-only enforcement", 
   });
 
   it("rejects a DELETE from the workspace owner (no grant, and the append-only trigger)", async () => {
-    const result = await ownerClient.from("ai_inference_logs").delete().eq("id", logId);
+    const result = await ownerClient.from("inference_logs").delete().eq("id", logId);
 
     expect(result.error).not.toBeNull();
   });
 
   it("rejects a direct UPDATE from the service-role client, proving the trigger is a real database boundary", async () => {
     const result = await admin
-      .from("ai_inference_logs")
+      .from("inference_logs")
       .update({ status: "failed" })
       .eq("id", logId);
 
@@ -273,14 +275,14 @@ describe("ai_inference_logs — persistence, RLS, and append-only enforcement", 
   });
 
   it("rejects a direct DELETE from the service-role client, proving the trigger is a real database boundary", async () => {
-    const result = await admin.from("ai_inference_logs").delete().eq("id", logId);
+    const result = await admin.from("inference_logs").delete().eq("id", logId);
 
     expect(result.error).not.toBeNull();
     expect(result.error?.message ?? "").toMatch(/append-only/i);
   });
 
   it("confirms the log row is unchanged after every rejected mutation attempt", async () => {
-    const result = await admin.from("ai_inference_logs").select("status").eq("id", logId).single();
+    const result = await admin.from("inference_logs").select("status").eq("id", logId).single();
 
     expect(result.error).toBeNull();
     expect(result.data?.status).toBe("success");

@@ -14,7 +14,7 @@ export type Database = {
   }
   public: {
     Tables: {
-      ai_inference_logs: {
+      inference_logs: {
         Row: {
           completion_tokens: number | null
           cost_usd_micros: number | null
@@ -65,21 +65,21 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "ai_inference_logs_mission_id_fkey"
+            foreignKeyName: "inference_logs_mission_id_fkey"
             columns: ["mission_id"]
             isOneToOne: false
             referencedRelation: "missions"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "ai_inference_logs_project_id_fkey"
+            foreignKeyName: "inference_logs_project_id_fkey"
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "ai_inference_logs_workspace_id_fkey"
+            foreignKeyName: "inference_logs_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: false
             referencedRelation: "workspaces"

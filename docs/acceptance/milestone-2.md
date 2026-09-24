@@ -32,7 +32,7 @@ Only mark an item complete when supported by manual, automated, database, or adv
 - [x] Zero write path exists from this feature to any `raioc-os` table, verified by code search, not by claim.
 - [ ] The current Option B implementation has a Postgres `BEFORE UPDATE` trigger on `mission_ai_drafts` and recorded direct-SQL bypass evidence, but canonical Section 4.4 places this load-bearing boundary on missions/tasks. **Class C HOLD: pending Emanuel's Option A/Option B architecture decision.**
 - [x] Fail-closed behavior proven under three conditions: model timeout, malformed model output, and rate limit response. Each produces an honest `status: failed` record, none fabricates success.
-- [ ] `ai_inference_logs` implements the Section 6 structural fields, foreign keys, indices, bigint cost accounting, and monthly partitioning, with recorded local-Postgres evidence. **The canonical table name is `inference_logs`; the current name remains a documented Class B conformance discrepancy.**
+- [ ] `inference_logs` implements the Section 6 structural fields, foreign keys, canonical indices, bigint cost accounting, monthly partitioning, `ON DELETE RESTRICT`, and append-only hardening. **The forward conformance migration and every application/test reference are implemented, but the criterion remains unchecked until Docker is available for a clean local migration replay and catalog/RLS verification.**
 - [ ] `npm test`, `npm run test:rls`, `npm run test:e2e`, `npm run typecheck`, `npm run lint`, `npm run build` all pass. **5 of 6 pass. Three production-build Playwright attempts reached draft generation without reproducing the Turbopack dev-server crash, but none completed the full flow: one observed HTTP 503 and two observed approximately 15-second timeouts. No green automated E2E run is recorded. See below.**
 - [ ] Supabase security advisors show no new finding introduced by this milestone. **Full local Security + Performance advisor detail recorded below (19 real findings, 0 errors, none a new regression) — genuine evidence, but still not the Auth-category check this criterion names, which is confirmed to be structurally out of reach locally. Left unchecked until that specific gap closes.**
 - [x] No Milestone 3 or later functionality, multi-model routing, Council Mode, agents, is present or reachable.
@@ -58,7 +58,7 @@ Covered by the "fails closed on a malformed model output" test in `inference-wra
 
 `features/ai/provider.ts` wires `gemini-3.6-flash` via native `fetch()` (no new SDK dependency), with a `costEstimator` calibrated to its real per-token pricing feeding the $0.02 hard ceiling. **Executed 22 Sep 2026**, end-to-end, through the real browser UI, against the local Supabase instance (`http://127.0.0.1:54321`, never production) — not a script, not a mock: signed in as a real test user, submitted a real prompt through `GenerateDraftForm`, and approved the resulting draft through `MissionAiDraftCard`'s Approve button, which calls the `approve_mission_ai_draft` RPC.
 
-**`ai_inference_logs` row for this exact call:**
+**`inference_logs` telemetry row for this exact call (captured before the canonical rename):**
 
 ```text
 id:                 8d85e0a6-b09d-4aca-abe1-d0208e4bfe1c
@@ -91,9 +91,9 @@ created_at:    2026-09-22 13:52:10.383824+00
 
 `created_at` on the draft (13:52:10.38) matches the inference log's `created_at` (13:52:10.37) to the second -- same call, same origin. `approved_at` is ~41s later -- the real time it took a human to read the draft and click Approve, not an automated or fabricated timestamp.
 
-Both rows queried directly from `public.ai_inference_logs` / `public.mission_ai_drafts` via `docker exec supabase_db_ai-showroom psql`, not through the application layer, so this is independent of any bug the app itself might have in how it reports its own success.
+Both rows were queried directly from the telemetry table (now `public.inference_logs`) and `public.mission_ai_drafts` via `docker exec supabase_db_ai-showroom psql`, not through the application layer, so this is independent of any bug the app itself might have in how it reports its own success.
 
-A second row in `ai_inference_logs` from the same test session (`12da0217-...`, `status: failed`, `failure_reason: PROVIDER_ERROR`, no cost/tokens/model recorded) shows the fail-closed path also held during real usage, not only in mocks -- a call that didn't complete left an honest failure record, not a fabricated success.
+A second row in the telemetry table from the same test session (`12da0217-...`, `status: failed`, `failure_reason: PROVIDER_ERROR`, no cost/tokens/model recorded) shows the fail-closed path also held during real usage, not only in mocks -- a call that didn't complete left an honest failure record, not a fabricated success.
 
 ### Zero write path to `raioc-os` (checked)
 
@@ -112,22 +112,26 @@ grep -rn "raioc-os\|raioc_os" --include="*.ts" --include="*.tsx" --include="*.sq
 ❯ tests/rls/mission-ai-drafts.rls.test.ts (12 tests) — all pass
 ```
 
-Hand review before execution had already caught two real bugs (the `array_length`/`cardinality` empty-array gap and the CASCADE/trigger conflict). The architecture placement remains pending Emanuel's decision; see `docs/evidencia/2026-09-24-m2-canonical-conformance-decisions.md`. Live execution then caught a third issue, unrelated to this trigger specifically: see the `ai_inference_logs` grant finding below.
+Hand review before execution had already caught two real bugs (the `array_length`/`cardinality` empty-array gap and the CASCADE/trigger conflict). The architecture placement remains pending Emanuel's decision; see `docs/evidencia/2026-09-24-m2-canonical-conformance-decisions.md`. Live execution then caught a third issue, unrelated to this trigger specifically: see the telemetry grant finding below.
 
 ### Fail-closed under timeout / malformed output / rate limit (checked)
 
 Three dedicated tests in `inference-wrapper.test.ts`, plus the same three (plus cost ceiling and input validation) re-verified at the application layer in `generate-mission-ai-draft.test.ts`, asserting `draftWriter.write` is never called on any non-`ok` wrapper result. All pass under `npm test`.
 
-### `ai_inference_logs` schema (structural evidence; Class B naming discrepancy)
+### `inference_logs` schema (Class B conformance implemented; local replay pending)
 
-`supabase/migrations/20260922130000_create_ai_inference_logs.sql` implements every structural requirement in Section 6: strict FKs (`ON DELETE RESTRICT`), the immutable cost-accounting columns, both mandatory indices, declarative monthly partitioning, and (beyond the original spec) an append-only trigger. **Executed 22 Sep 2026** against local Postgres:
+`supabase/migrations/20260922130000_create_ai_inference_logs.sql` originally implemented every structural requirement in Section 6 under the former table identifier: strict FKs (`ON DELETE RESTRICT`), immutable cost-accounting columns, both mandatory indices, declarative monthly partitioning, and (beyond the original spec) an append-only trigger. **Executed 22 Sep 2026** against local Postgres. The preserved historical output was:
 
 ```text
 select table_name from information_schema.tables where table_schema='public';
 -> ai_inference_logs, ai_inference_logs_2026_09, ai_inference_logs_2026_10, ...
 ```
 
-The two monthly partitions materialized exactly as `private.ai_inference_logs_ensure_partition()` was designed to do (current + next calendar month), confirmed by direct SQL, not by reading the function body.
+The two monthly partitions materialized exactly as the original helper was designed to do (current + next calendar month), confirmed by direct SQL, not by reading the function body.
+
+On 24 Sep 2026, `supabase/migrations/20260924124625_rename_ai_inference_logs_to_inference_logs.sql` was added as a forward-only migration because repository and linked-project metadata could not prove the original migration was confined to disposable databases. It renames the parent table, every extant monthly partition, constraints, canonical indices, partition helper, rejection function, triggers, and RLS policies while retaining rows, RLS, ACLs, `RESTRICT`, and append-only semantics. Application types, adapter, unit/RLS/E2E tests, and accounting queries now use `inference_logs`. Local replay is not claimed: Docker Desktop was unavailable (`dockerDesktopLinuxEngine` pipe missing), and no hosted database was used as a substitute.
+
+Non-database conformance verification on 24 Sep 2026: the four telemetry/schema/application unit files passed (`32/32`); `npm run typecheck` passed; `npm run lint` completed with zero errors and six pre-existing warnings in `obsidian-sync-canary-runner.test.ts`. The full unit run passed `302/304`; its two unrelated failures were both in `obsidian-sync-runner-retirement.test.ts`, where a spawned `tsx` process failed before test logic with Node `uv_os_get_passwd returned ENOMEM`. Database/RLS tests were not run because a proven local database was unavailable. Provider-calling E2E was intentionally not run for this identifier-only change.
 
 The canonical `$20.00` development bancada ceiling is objectively trackable from these integer rows without adding a production runtime blocker:
 
@@ -137,16 +141,16 @@ select
   20000000::bigint as budget_usd_micros,
   20000000::bigint - coalesce(sum(cost_usd_micros), 0)::bigint
     as remaining_budget_usd_micros
-from public.ai_inference_logs;
+from public.inference_logs;
 ```
 
 Run this only against the isolated Milestone 2 test/bancada database. `20,000,000` micros USD equals `$20.00`; this query tracks the development ceiling but does not introduce an autonomous production blocking policy.
 
-**Live execution also caught a real bug hand review had missed:** `information_schema.role_table_grants` showed `authenticated`/`anon` held `UPDATE`/`DELETE`/`TRUNCATE` on `ai_inference_logs` despite the migration only issuing `grant select, insert`. This Supabase project's default privileges grant full DML to `anon`/`authenticated` on every new `public` table; a `GRANT` is additive and never revokes that pre-existing grant. The security boundary itself had not been broken — RLS with no `UPDATE`/`DELETE` policy silently matches zero rows rather than erroring, and the row was confirmed unchanged — but the intended defense-in-depth (a hard `permission denied`, not an implicit RLS no-op) was missing. Fixed with an explicit `revoke all on public.ai_inference_logs from anon, authenticated;` (and the equivalent for `mission_ai_drafts`, which had the same gap for `DELETE`) before the `grant select, insert` line. Re-verified after the fix, via a full `supabase db reset` replay:
+**Live execution also caught a real bug hand review had missed:** `information_schema.role_table_grants` showed `authenticated`/`anon` held `UPDATE`/`DELETE`/`TRUNCATE` on the telemetry table despite the migration only issuing `grant select, insert`. This Supabase project's default privileges grant full DML to `anon`/`authenticated` on every new `public` table; a `GRANT` is additive and never revokes that pre-existing grant. The security boundary itself had not been broken — RLS with no `UPDATE`/`DELETE` policy silently matches zero rows rather than erroring, and the row was confirmed unchanged — but the intended defense-in-depth (a hard `permission denied`, not an implicit RLS no-op) was missing. Fixed with an explicit revoke (and the equivalent for `mission_ai_drafts`, which had the same gap for `DELETE`) before the `grant select, insert` line. Re-verified after the fix, via a full `supabase db reset` replay; the query below now targets the canonical name:
 
 ```text
 select grantee, privilege_type from information_schema.role_table_grants
-where table_name='ai_inference_logs' and grantee in ('anon','authenticated');
+where table_name='inference_logs' and grantee in ('anon','authenticated');
 -> authenticated: INSERT, SELECT only. anon: nothing.
 ```
 
@@ -203,12 +207,12 @@ The Studio pages report non-zero counts the bare CLI summary doesn't surface (0 
 | WARN | `authenticated_security_definer_function_executable` | `public.approve_mission_ai_draft(p_draft_id uuid)` is `SECURITY DEFINER` and executable by `authenticated` via `/rest/v1/rpc/approve_mission_ai_draft` |
 
 Both are **expected, not regressions**:
-- The two `rls_enabled_no_policy` findings are on the monthly *partitions* of `ai_inference_logs`, not the parent table. Policies are defined once, on the parent (Section 4.4/6 migrations); Postgres RLS resolves policy from the table named in the query, and no client (PostgREST/Supabase-js) ever addresses a partition by name directly -- only `public.ai_inference_logs`. A partition with RLS enabled and no policy of its own defaults to zero access for every non-owner role, which is fail-closed, not a hole. The advisor doesn't model parent-policy inheritance for partitions, so it flags this as informational on every partition, every month, going forward -- worth knowing, not worth fixing.
+- The two `rls_enabled_no_policy` findings are historical pre-rename output for monthly telemetry *partitions*, not the parent table. Policies are defined once, on the parent (Section 4.4/6 migrations); Postgres RLS resolves policy from the table named in the query, and no client (PostgREST/Supabase-js) addresses a partition by name directly -- only `public.inference_logs`. A partition with RLS enabled and no policy of its own defaults to zero access for every non-owner role, which is fail-closed, not a hole. The advisor doesn't model parent-policy inheritance for partitions, so it flags this as informational on every partition, every month, going forward -- worth knowing, not worth fixing.
 - The `SECURITY DEFINER` warning is exactly the deliberate design from the Section 4.4 anti-spoofing decision: `approve_mission_ai_draft` must be `SECURITY DEFINER`, callable by `authenticated`, specifically so it can bypass the deliberately-restrictive `mission_ai_drafts_update_member` RLS policy that blocks direct client writes to `approved_by`/`approved_at`/`applied`. The function does its own authorization inside the body (`auth.uid()` check, `is_workspace_member`, `status = 'pending_review'` check) rather than relying on the caller's RLS context, which is precisely the pattern this advisor is designed to flag for manual confirmation ("is this intentional?") -- it is. `create_workspace_with_owner` (Milestone 1) does not trigger this warning because it is `SECURITY INVOKER`, not `SECURITY DEFINER`; the two functions are architecturally different on purpose.
 
 **Performance (16 findings, all INFO, all `unindexed_foreign_keys`):** 6 are new, introduced by this milestone's two tables; 10 pre-exist from Milestone 1 and were already known and accepted (`docs/acceptance/milestone-1.md`: "Fresh performance advisor review showed INFO-level unindexed foreign-key recommendations. No schema change is being introduced during Task 8 solely to silence performance advisories.") -- Milestone 2's contribution is the same category of finding on the same established, already-accepted basis, not a new pattern:
 
-- `ai_inference_logs` / `ai_inference_logs_2026_09` / `ai_inference_logs_2026_10` -- `project_id` FK, no covering index (×3)
+- Telemetry parent / September partition / October partition -- `project_id` FK, no covering index (×3; historical pre-rename advisor labels shown above)
 - `mission_ai_drafts` -- `approved_by`, `created_by`, `project_id` FKs, no covering index (×3)
 
 No error-level finding, in either category, anywhere in the schema.
@@ -240,11 +244,11 @@ grep -rn "fetch(|axios|http://|https://" features/ai/
 - **Canonical design provenance restored.** `docs/superpowers/specs/2026-09-21-ai-showroom-v1-milestone-2-design.md` is restored exactly to `d2ee57a`. Later implementation choices and the Class C HOLD now live in `docs/evidencia/2026-09-24-m2-canonical-conformance-decisions.md`, not in the ratified historical document.
 - **No component/interaction test harness.** No `@testing-library/react`, no jsdom/happy-dom, `vitest.config.mts` stays `environment: "node"`. UI logic that is pure (badge/status mapping, prompt-length validation) is unit-tested in `tests/unit/draft-presentation.test.ts`; actual render/click interaction is not.
 - **~~No real browser session exercised against live data.~~ Resolved 22 Sep 2026.** A real signed-in session, on `npm run dev`, generated and approved a draft through the actual UI against the local Supabase instance and a real `gemini-3.6-flash` call -- see "Model call against a real provider" above. `npm run test:e2e` (automated Playwright) is a separate, still-open item -- this was manual, not scripted.
-- **Default-privilege drift across the schema, beyond just the two new tables.** The `ai_inference_logs`/`mission_ai_drafts` grant gap this session found and fixed (see above) is a property of this Supabase project's default privileges, not of those two migrations specifically. Whether the same implicit over-grant exists on Milestone 1's own tables was not audited as part of this pass — out of scope here since Milestone 1 is FROZEN, but worth a dedicated look before assuming its `grant select, insert, update, delete` lines are the *only* privileges those tables carry.
+- **Default-privilege drift across the schema, beyond just the two new tables.** The `inference_logs`/`mission_ai_drafts` grant gap this session found and fixed (see above) is a property of this Supabase project's default privileges, not of those two migrations specifically. Whether the same implicit over-grant exists on Milestone 1's own tables was not audited as part of this pass — out of scope here since Milestone 1 is FROZEN, but worth a dedicated look before assuming its `grant select, insert, update, delete` lines are the *only* privileges those tables carry.
 - **Both `.env.test.local` and `.env.local` pointed at the hosted production project before this session.** `.env.test.local` was caught and fixed before the first `test:rls` run. `.env.local` -- the file `npm run dev` actually reads -- was caught separately, immediately before the manual browser verification above, the same way: re-checked fresh, found still pointing at `yljvselkecxdfrqwyums.supabase.co`, corrected to `http://127.0.0.1:54321` before the dev server was ever started. Both files are gitignored; both were pre-existing states on this machine, not something introduced by Milestone 2. Worth checking whether other machines/checkouts have the same misconfiguration, and worth asking why the default local checkout points at production at all.
 - **Real hydration bug found and fixed via E2E testing, 22 Sep 2026.** `MissionAiDraftCard`'s "Approved <timestamp>" line called `new Date(...).toLocaleString()` with no explicit locale. Node's server-side default locale (`9/22/2026, 5:52:51 PM`) rendered differently from the browser's (`22/09/2026, 5:52:51 PM`), producing a genuine SSR/client hydration mismatch caught only because a real browser loaded the real page -- no unit test could have found this. Fixed by pinning an explicit locale (`toLocaleString("en-GB")`) so server and client always agree.
 - **The production-build Playwright harness did not reproduce the Turbopack dev-server crash.** Three runs using `npm run build` + `npm run start` reached draft generation after completing sign-in and workspace/project/mission creation. This supports using a production build for E2E, as recommended by the bundled Next.js Playwright guide. It does not establish a successful full automated HITL journey because all three runs stopped during generation.
-- **Automated provider-call observations remain inconclusive as to exclusive cause.** The three runs observed one HTTP 503 ("This model is currently experiencing high demand") and two approximately 15-second timeouts (`ai_inference_logs.latency_ms`: 15012 and 15015). Those records prove the response/error and measured latency seen by the wrapper; they do not alone distinguish provider availability from network or client-path causes. A separate earlier manual browser run (`8d85e0a6-...`, `latency_ms: 5027`, `status: success`) proves the manual flow completed at least once. No green automated E2E run is recorded.
+- **Automated provider-call observations remain inconclusive as to exclusive cause.** The three runs observed one HTTP 503 ("This model is currently experiencing high demand") and two approximately 15-second timeouts (`inference_logs.latency_ms`: 15012 and 15015). Those records prove the response/error and measured latency seen by the wrapper; they do not alone distinguish provider availability from network or client-path causes. A separate earlier manual browser run (`8d85e0a6-...`, `latency_ms: 5027`, `status: success`) proves the manual flow completed at least once. No green automated E2E run is recorded.
 
 ## Pending Final Gate
 

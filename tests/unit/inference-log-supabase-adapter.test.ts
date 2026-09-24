@@ -27,13 +27,13 @@ function createMockSupabase(insertResult: { error: { message: string } | null })
 }
 
 describe("SupabaseInferenceLogWriter", () => {
-  it("inserts a correctly mapped row into ai_inference_logs", async () => {
+  it("inserts a correctly mapped row into inference_logs", async () => {
     const { supabase, from, insert } = createMockSupabase({ error: null });
     const writer = new SupabaseInferenceLogWriter(supabase);
 
     await writer.write(successRecord);
 
-    expect(from).toHaveBeenCalledWith("ai_inference_logs");
+    expect(from).toHaveBeenCalledWith("inference_logs");
     expect(insert).toHaveBeenCalledWith({
       workspace_id: successRecord.workspace_id,
       project_id: successRecord.project_id,
@@ -52,12 +52,12 @@ describe("SupabaseInferenceLogWriter", () => {
 
   it("propagates a Supabase insert failure instead of swallowing it (fail-closed)", async () => {
     const { supabase } = createMockSupabase({
-      error: { message: "permission denied for table ai_inference_logs" },
+      error: { message: "permission denied for table inference_logs" },
     });
     const writer = new SupabaseInferenceLogWriter(supabase);
 
     await expect(writer.write(successRecord)).rejects.toThrow(
-      /permission denied for table ai_inference_logs/,
+      /permission denied for table inference_logs/,
     );
   });
 });

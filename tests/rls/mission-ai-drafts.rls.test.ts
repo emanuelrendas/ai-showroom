@@ -177,7 +177,7 @@ describe("mission_ai_drafts — persistence, RLS, and Section 4.4 HITL gate", ()
 
   afterAll(async () => {
     // Cascade cleanup is fine here: mission_ai_drafts uses ON DELETE CASCADE
-    // (unlike ai_inference_logs, which uses RESTRICT). Deleting the workspace
+    // (unlike inference_logs, which uses RESTRICT). Deleting the workspace
     // is expected to succeed and take everything else with it.
     if (workspaceId) {
       const { error } = await ownerClient.from("workspaces").delete().eq("id", workspaceId);
