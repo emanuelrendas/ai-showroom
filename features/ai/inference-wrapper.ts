@@ -92,9 +92,8 @@ export const defaultCostEstimator: CostEstimator = ({ input }) => {
   );
 };
 
-// $0.02 hard ceiling per call, per explicit runtime directive (2026-09-22).
-// Section 6.6 of the milestone design document leaves the cost ceiling as an
-// open item pending a number from Emanuel; this constant is that number.
+// $0.02 hard ceiling per call, ratified by Emanuel in Section 6.6 of the
+// canonical milestone design document (2026-09-21).
 export const DEFAULT_COST_CEILING_USD_MICROS = 20_000;
 export const DEFAULT_TIMEOUT_MS = 30_000;
 
@@ -196,7 +195,7 @@ export class InferenceExecutionWrapper {
       const log = this.buildLogRecord({
         input,
         taskType,
-        status: "failed",
+        status: "refused",
         latencyMs: this.elapsedMs(startedAt),
         failureReason: "COST_CEILING_EXCEEDED",
       });
@@ -258,7 +257,7 @@ export class InferenceExecutionWrapper {
       const log = this.buildLogRecord({
         input,
         taskType,
-        status: "refused",
+        status: "failed",
         latencyMs,
         failureReason: "MODEL_SCHEMA_VIOLATION",
         usage: providerResult.usage,

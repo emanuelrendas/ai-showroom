@@ -126,7 +126,7 @@ describe("generateMissionAiDraft — fail-closed: no draft is ever written on a 
           httpStatus: 422,
           message: "SingleModelOutputSchema validation failed",
         },
-        log: { ...successLog, status: "refused", failure_reason: "MODEL_SCHEMA_VIOLATION" },
+        log: { ...successLog, status: "failed", failure_reason: "MODEL_SCHEMA_VIOLATION" },
       },
     },
     {
@@ -138,7 +138,7 @@ describe("generateMissionAiDraft — fail-closed: no draft is ever written on a 
           httpStatus: 402,
           message: "Estimated cost exceeds the hard ceiling",
         },
-        log: { ...successLog, status: "failed", failure_reason: "COST_CEILING_EXCEEDED" },
+        log: { ...successLog, status: "refused", failure_reason: "COST_CEILING_EXCEEDED" },
       },
     },
     {

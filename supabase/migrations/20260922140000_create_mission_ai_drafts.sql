@@ -1,10 +1,10 @@
 -- V1 Milestone 2, Sections 4.2 and 4.4: mission_ai_drafts.
 --
--- Architecture Decision (ratified, Option B): a dedicated table for AI-generated
--- drafts, separate from `missions`. Milestone 1's `missions` table (FROZEN) is not
--- altered by this migration: no new columns, no status values added to it. A
--- mission may accumulate several drafts over time, each with its own independent
--- review/approval lifecycle.
+-- Class C HOLD (Option B implementation): a dedicated table for AI-generated
+-- drafts, separate from `missions`. This preserves Milestone 1's frozen schema,
+-- but deviates from the literal Section 4.4 placement and requires Emanuel's
+-- written architecture decision. See the 2026-09-24 M2 conformance decision
+-- record. The implementation is preserved unchanged while that decision is open.
 --
 -- Status scope note: Section 4.4's literal text guards transitions to "applied" OR
 -- "completed" on "the missions/tasks table". This table only ever uses
@@ -12,7 +12,7 @@
 -- vocabulary that belongs to `missions.status` (untouched, FROZEN), not to a
 -- draft's own lifecycle, so only 'applied' is guarded here.
 --
--- Anti-spoofing note (ratified): approved_by/approved_at are never writable by a
+-- Anti-spoofing note (current Option B implementation): approved_by/approved_at are never writable by a
 -- direct client UPDATE (see the RLS policy below). The only path that can move a
 -- row to 'applied' is the SECURITY DEFINER public.approve_mission_ai_draft(uuid)
 -- RPC, which sets approved_by = auth.uid() and approved_at = now() itself, from

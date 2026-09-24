@@ -6,7 +6,8 @@
 **Canonical path:** `docs/superpowers/specs/2026-09-21-ai-showroom-v1-milestone-2-design.md`
 **Predecessor:** V1 Milestone 1 — Foundation (FROZEN), see `docs/acceptance/milestone-1.md`
 **Sovereign Architecture Decision:** Option A, Strict Scope, ratified by Emanuel Rendas 21 Sep 2026, 14:39 GST
-**Technical Review:** Adversarial review by Tiago (Lane AI Showroom), 21 Sep 2026, 15:25 GST. Sol's doctrine assessed by Emanuel as consensus-aligned with the Gate A–G baseline, no independent divergent parecer required. Final ratification by Emanuel Rendas, 21 Sep 2026, 15:25 GST.
+**Technical Review:** Adversarial review by Tiago (Lane AI Showroom), 21 Sep 2026, 15:25 GST. Sol's doctrine assessed by Emanuel as consensus-aligned with the Gate A–G baseline, no independent divergent parecer required. Final ratification by Emanuel Rendas, 21 Sep 2026, 15:25 GST. Cost ceiling closed, 21 Sep 2026, 15:36 GST. **Design phase CLOSED, no open items remaining. Implementation authorized.**
+**Implementation Writer:** Tiago (Lane AI Showroom), One Writer, per Decision H. Target branch `feature/milestone-2-single-model`, cut from audited commit `9929a032b0b77499943b3ab2aa0b58f150dc9bd7`.
 
 ---
 
@@ -128,8 +129,6 @@ Single-Model AI attaches at the Mission level, consistent with the existing repo
 
 Every model output lands in a review state visible only inside the Mission it was generated from. It is readable, editable, and dismissible by an authorized workspace member. Nothing about it is published, dispatched, or written to any field outside the Mission's own draft storage until a human explicitly accepts it.
 
-**Implementation Decision (Option B), ratified by Tiago during implementation, 22 Sep 2026:** the draft surface is a dedicated table, `mission_ai_drafts`, separate from `missions`. Milestone 1's `missions` table (FROZEN) receives zero schema changes under Milestone 2: no new columns, no new status values, nothing. A mission may accumulate several drafts over time, each with its own independent `pending_review` / `applied` / `dismissed` lifecycle, rather than a single AI verdict living on the mission record itself. Option A (extending `missions` directly with `is_ai_generated`/`approved_by`/`approved_at` and widening its status check constraint to include `applied`/`completed`) was considered and rejected specifically to keep the Milestone 1 FROZEN guarantee literal, not just aspirational. See `supabase/migrations/20260922140000_create_mission_ai_drafts.sql`.
-
 ### 4.3 Failure and Fallback Path
 
 On any model error, the system writes a `status: failed` record with an honest `failure_reason`, surfaces it to the requesting user inside the Mission, and stops. No retry loop runs silently without a visible state change the user can see. No fallback model is substituted without the substitution being logged as such in the output record.
@@ -143,8 +142,6 @@ Amended per Tiago's adversarial review, ratified by Emanuel Rendas 21 Sep 2026. 
    - `approved_by` resolves to a valid, authenticated human user (`auth.uid()`), and
    - `approved_at` is a valid timestamp.
 3. This makes the HITL barrier immune to application-layer bypass: even if the Next.js/frontend layer fails, contains a bug, or is called directly, Postgres aborts the mutation at the database boundary.
-
-**Implementation note, ratified by Tiago, 22 Sep 2026:** per the Option B decision in Section 4.2, point 2's trigger is realized on `mission_ai_drafts`, not on `missions`/a "tasks" table (no such table exists in this schema). The function `private.enforce_mission_ai_draft_hitl_gate()` fires `BEFORE UPDATE` on `mission_ai_drafts` and fires on every update, not only the `pending_review` → `applied` edge, so a row already `applied` cannot later be corrupted into carrying null approval fields by a separate write path. `completed` is not a status value this table uses — that word is `missions.status` vocabulary, untouched per 4.2. The client-side bypass this trigger guards against is closed by two independent layers: an RLS policy that never permits a direct client `UPDATE` to reach `status = 'applied'` or to set `approved_by`/`approved_at` at all, and the `SECURITY DEFINER` RPC `public.approve_mission_ai_draft(uuid)` as the only sanctioned path that can. See `supabase/migrations/20260922140000_create_mission_ai_drafts.sql` and `tests/rls/mission-ai-drafts.rls.test.ts` (written, not yet executed against a live Postgres instance — see `docs/acceptance/milestone-2.md`).
 
 ---
 
@@ -171,11 +168,9 @@ Following the evidence discipline already ratified in `docs/acceptance/milestone
 
 Amended per Tiago's adversarial review, ratified 21 Sep 2026. The `inference_logs` table is written exclusively by the `InferenceExecutionWrapper` (Section 3.3.2), never by application code calling it directly, and never by the model.
 
-**Implementation note, ratified by Tiago, 22 Sep 2026:** the table exists as `ai_inference_logs`, not `inference_logs` as literally named below — an explicit naming decision made during implementation, not a drift. All structural requirements in this section apply to it unchanged. See `supabase/migrations/20260922130000_create_ai_inference_logs.sql`.
-
 **Structural requirements for `inference_logs`:**
 
-1. **Strict foreign keys:** `workspace_id`, `project_id`, and `mission_id` are explicit foreign keys with `ON DELETE RESTRICT` (audit trail preserved) or `ON DELETE CASCADE`, decided at implementation time per column, never left as untyped UUIDs with no constraint. **Decided, ratified by Tiago, 22 Sep 2026: `ON DELETE RESTRICT` on all three.** CASCADE was considered and rejected: this table also carries an append-only `BEFORE UPDATE`/`BEFORE DELETE` trigger (point 6 below), and an `ON DELETE CASCADE` from `workspaces`/`projects`/`missions` would itself fire that trigger for every cascaded row — which rejects all deletes unconditionally — turning a cascading delete into a thrown exception instead of a clean cascade. RESTRICT avoids that ambiguity: deleting a workspace/project/mission with any inference log rows fails immediately on the foreign-key check, before ever touching `ai_inference_logs`. The intentional consequence: once a workspace/project/mission has an AI call logged against it, it can no longer be deleted at all, by anyone, including via cascade — the audit trail cannot be destroyed by destroying its container.
+1. **Strict foreign keys:** `workspace_id`, `project_id`, and `mission_id` are explicit foreign keys with `ON DELETE RESTRICT` (audit trail preserved) or `ON DELETE CASCADE`, decided at implementation time per column, never left as untyped UUIDs with no constraint.
 2. **Immutable cost accounting:** cost is never computed client-side or in a volatile runtime path. The table stores:
    - `prompt_tokens` (integer), from the provider's usage envelope
    - `completion_tokens` (integer), from the provider's usage envelope
@@ -188,10 +183,11 @@ Amended per Tiago's adversarial review, ratified 21 Sep 2026. The `inference_log
 3. **Mandatory indices:**
    - `CREATE INDEX idx_inference_logs_mission ON inference_logs(mission_id);`
    - `CREATE INDEX idx_inference_logs_workspace_created ON inference_logs(workspace_id, created_at DESC);`
-4. **Retention:** monthly partitioning, declarative by `created_at`, to prevent unbounded disk growth on the operational Supabase project. **Implemented:** `create table ... partition by range (created_at)`, with a `private.ai_inference_logs_ensure_partition(date)` helper bootstrapping the current and next calendar month. Provisioning further months requires a scheduled call to that helper (e.g. `pg_cron`); that schedule is not part of this migration and remains an open operational item.
-5. This table is queryable by workspace administrators for cost review. **Implemented** as RLS policy `ai_inference_logs_select_admin`, restricted to `owner`/`admin` workspace roles.
-6. **Append-only, added during implementation (not originally specified in this section, extending the Section 4.4 doctrine to telemetry integrity):** a `BEFORE UPDATE` and `BEFORE DELETE` trigger (`private.reject_ai_inference_logs_mutation()`) unconditionally rejects any mutation, regardless of caller privilege, backed by grants that omit `UPDATE`/`DELETE` for `authenticated` entirely. This is the trigger referenced in point 1 above.
-7. **Cost ceiling — resolved, ratified by Tiago, 22 Sep 2026: $0.02 (20,000 `usd_micros`) hard limit per call.** This closes the open item originally left here for Emanuel. The `InferenceExecutionWrapper` (Section 3.3.2) estimates cost before dispatching to the provider and aborts the call — never reaching the provider — if the estimate exceeds this ceiling, logging the abort as a `status: failed` / `failure_reason: COST_CEILING_EXCEEDED` row. See `DEFAULT_COST_CEILING_USD_MICROS` in `features/ai/inference-wrapper.ts`. No budget *alert* threshold (as opposed to hard limit) has been defined; that remains open if wanted.
+4. **Retention:** monthly partitioning, declarative by `created_at`, to prevent unbounded disk growth on the operational Supabase project.
+5. This table is queryable by workspace administrators for cost review.
+6. **Cost ceiling, ratified by Emanuel Rendas, 21 Sep 2026, 15:36 GST:**
+   - **Per-inference ceiling:** maximum $0.02 USD (`20_000` micros USD) per call. The `InferenceExecutionWrapper` (Section 3.3.2) aborts or rejects any call projected to exceed this ceiling based on its token profile before dispatching to the provider, and records the rejection to `inference_logs` with `status: refused`, never a silent skip.
+   - **Bancada budget for Milestone 2:** $20.00 USD accumulated, tracked by summing `cost_usd_micros` in `inference_logs` for the milestone's test/bancada Supabase project. This is a development-phase ceiling, not a production runtime limit, and does not itself constitute an acceptance criterion beyond what Section 5 already states.
 
 ---
 

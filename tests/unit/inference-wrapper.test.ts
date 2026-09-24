@@ -145,7 +145,7 @@ describe("InferenceExecutionWrapper — cost ceiling ($0.02 hard limit)", () => 
     if (!result.ok) {
       expect(result.failure.code).toBe("COST_CEILING_EXCEEDED");
       expect(result.failure.httpStatus).toBe(402);
-      expect(result.log?.status).toBe("failed");
+      expect(result.log?.status).toBe("refused");
       expect(result.log?.failure_reason).toBe("COST_CEILING_EXCEEDED");
     }
 
@@ -202,7 +202,7 @@ describe("InferenceExecutionWrapper — fail-closed scenarios (Section 5)", () =
       expect(result.failure.code).toBe("MODEL_SCHEMA_VIOLATION");
       expect(result.failure.httpStatus).toBe(422);
       expect(result.failure.issues?.length).toBeGreaterThan(0);
-      expect(result.log?.status).toBe("refused");
+      expect(result.log?.status).toBe("failed");
       expect(result.log?.failure_reason).toBe("MODEL_SCHEMA_VIOLATION");
       expect(result.log?.prompt_tokens).toBe(50);
     }

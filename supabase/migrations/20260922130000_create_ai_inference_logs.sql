@@ -7,8 +7,9 @@
 -- Section 4.4 doctrine ("Postgres aborts the mutation... immune to application-layer
 -- bypass") applied here to telemetry integrity rather than the HITL gate itself.
 --
--- Naming note: Section 6 refers to this table as `inference_logs`; it is created here
--- as `ai_inference_logs` per explicit runtime instruction.
+-- Class B naming discrepancy: Section 6 names `inference_logs`; the current
+-- implementation uses `ai_inference_logs` (including `idx_ai_*` index names).
+-- No canonical-equivalence claim is made while the rename decision is open.
 --
 -- FK note: workspace_id / project_id / mission_id use ON DELETE RESTRICT, not the
 -- CASCADE already used elsewhere (workspaces -> projects -> missions). CASCADE was
@@ -24,7 +25,8 @@
 -- an AI call logged against it, it can no longer be deleted at all, by anyone,
 -- including via cascade -- the audit trail cannot be destroyed by destroying its
 -- container. Section 6.1 explicitly leaves RESTRICT vs CASCADE as an
--- implementation decision; this is that decision, and it is reversible.
+-- implementation-time Class B choice. The current RESTRICT behavior is preserved
+-- pending written Tiago ratification; this remediation makes no new choice.
 
 create table public.ai_inference_logs (
   id uuid not null default gen_random_uuid(),
@@ -89,7 +91,7 @@ select private.ai_inference_logs_ensure_partition(
   (date_trunc('month', now()) + interval '1 month')::date
 );
 
--- Append-only enforcement. Row-level triggers defined on a partitioned table
+-- Existing Class B append-only hardening. Row-level triggers defined on a partitioned table
 -- (Postgres 11+) are automatically applied to every partition, present and
 -- future, so a single trigger pair here covers the whole table.
 create or replace function private.reject_ai_inference_logs_mutation()

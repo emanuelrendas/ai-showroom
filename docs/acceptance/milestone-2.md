@@ -1,11 +1,11 @@
 # V1 Milestone 2 - Acceptance Checklist
 
 **Milestone:** Single-Model AI
-**Release state:** Candidate - real end-to-end HITL cycle verified manually with a live Gemini call against local Postgres; automated `test:e2e` written but blocked by an upstream Next.js/Turbopack dev-server bug (see below); full Supabase advisor pass (Auth-category) still open
-**Report date:** 22 September 2026 (updated same day: local Security/Performance advisor detail, a real hydration bug fixed via E2E testing, and the Turbopack blocker documented)
+**Release state:** Candidate - a complete HITL cycle was verified manually with a live Gemini call against local Postgres. Automated Playwright reached draft generation in three production-build runs without reproducing the Turbopack dev-server crash, but none completed the full flow: one observed an HTTP 503 and two observed approximately 15-second timeouts. Those observations do not by themselves prove provider-only causation. The full Supabase advisor pass (Auth category) also remains open.
+**Report date:** 22 September 2026 (updated 24 September 2026 to distinguish manual success, automated attempts, observed failures, and inferred causes)
 **Design document:** `docs/superpowers/specs/2026-09-21-ai-showroom-v1-milestone-2-design.md`
 
-Only mark an item complete when supported by manual, automated, database, or advisor evidence, per the same discipline `docs/acceptance/milestone-1.md` already established. Ten of the twelve Section 5 criteria have that evidence today; two do not yet, and are left unchecked rather than asserted.
+Only mark an item complete when supported by manual, automated, database, or advisor evidence, per the same discipline `docs/acceptance/milestone-1.md` already established. Eight of the twelve Section 5 criteria have that evidence and canonical alignment today; four do not yet, and are left unchecked rather than asserted.
 
 ## Implementation Commits
 
@@ -30,15 +30,15 @@ Only mark an item complete when supported by manual, automated, database, or adv
 - [x] A test proves `safeParse()` rejects a malformed model response with `MODEL_SCHEMA_VIOLATION` and HTTP 422, no silent coercion path exists.
 - [x] Model call functional against a dedicated test or bancada Supabase project, never against production during development. **Executed 22 Sep 2026: real gemini-3.6-flash call via the browser UI against the local Supabase instance, approved through the full HITL flow. See below for the exact inference log and draft rows.**
 - [x] Zero write path exists from this feature to any `raioc-os` table, verified by code search, not by claim.
-- [x] The Postgres `BEFORE UPDATE` trigger (Section 4.4, realized on `mission_ai_drafts` per the Option B decision) is implemented and provably blocks a direct-SQL attempt to reach `applied` without a valid `approved_by`/`approved_at`. **Executed 22 Sep 2026: 31/31 RLS tests pass against real local Postgres, including the service-role bypass-attempt proof.**
+- [ ] The current Option B implementation has a Postgres `BEFORE UPDATE` trigger on `mission_ai_drafts` and recorded direct-SQL bypass evidence, but canonical Section 4.4 places this load-bearing boundary on missions/tasks. **Class C HOLD: pending Emanuel's Option A/Option B architecture decision.**
 - [x] Fail-closed behavior proven under three conditions: model timeout, malformed model output, and rate limit response. Each produces an honest `status: failed` record, none fabricates success.
-- [x] `ai_inference_logs` schema matches Section 6 exactly: foreign keys, indices, `cost_usd_micros` as bigint, monthly partitioning by `created_at`. **Executed 22 Sep 2026: applied via `supabase db reset` against real Postgres; partitions `ai_inference_logs_2026_09`/`ai_inference_logs_2026_10` materialized and confirmed via direct SQL.**
-- [ ] `npm test`, `npm run test:rls`, `npm run test:e2e`, `npm run typecheck`, `npm run lint`, `npm run build` all pass. **`test:rls` now passes (see below); `test:e2e` still not run.**
-- [ ] Supabase security advisors show no new finding introduced by this milestone. **`supabase db lint --local` is clean (see below) — genuine schema-level evidence, but not the full advisor check (Auth/platform-level findings, e.g. Milestone 1's "Leaked Password Protection Disabled", aren't covered by a local schema lint). Left unchecked until the actual advisor pass runs.**
+- [ ] `ai_inference_logs` implements the Section 6 structural fields, foreign keys, indices, bigint cost accounting, and monthly partitioning, with recorded local-Postgres evidence. **The canonical table name is `inference_logs`; the current name remains a documented Class B conformance discrepancy.**
+- [ ] `npm test`, `npm run test:rls`, `npm run test:e2e`, `npm run typecheck`, `npm run lint`, `npm run build` all pass. **5 of 6 pass. Three production-build Playwright attempts reached draft generation without reproducing the Turbopack dev-server crash, but none completed the full flow: one observed HTTP 503 and two observed approximately 15-second timeouts. No green automated E2E run is recorded. See below.**
+- [ ] Supabase security advisors show no new finding introduced by this milestone. **Full local Security + Performance advisor detail recorded below (19 real findings, 0 errors, none a new regression) — genuine evidence, but still not the Auth-category check this criterion names, which is confirmed to be structurally out of reach locally. Left unchecked until that specific gap closes.**
 - [x] No Milestone 3 or later functionality, multi-model routing, Council Mode, agents, is present or reachable.
 - [x] Green List or `raioc-os` coupling absent, verified by dependency and import search across the codebase, not by assertion.
 
-**10 of 12 checked, with evidence recorded below for each. 2 unchecked, also with the reason recorded below — not silently pending.**
+**8 of 12 checked, with evidence recorded below for each. 4 unchecked, also with the reason recorded below — not silently pending.**
 
 ## Evidence Recorded
 
@@ -104,7 +104,7 @@ grep -rn "raioc-os\|raioc_os" --include="*.ts" --include="*.tsx" --include="*.sq
 -> 0 matches
 ```
 
-### Postgres HITL trigger on `mission_ai_drafts` (checked)
+### Postgres HITL trigger on `mission_ai_drafts` (implementation evidence; Class C HOLD)
 
 `supabase/migrations/20260922140000_create_mission_ai_drafts.sql` implements `private.enforce_mission_ai_draft_hitl_gate()`. **Executed 22 Sep 2026** against a local Docker Postgres instance (`supabase db reset`, full migration chain replayed from Milestone 1 forward, zero errors): `tests/rls/mission-ai-drafts.rls.test.ts`, all 12 tests pass, including a direct service-role `UPDATE` attempt that bypasses RLS entirely — proving the trigger itself, not merely RLS, is the enforcement boundary. Raw result:
 
@@ -112,13 +112,13 @@ grep -rn "raioc-os\|raioc_os" --include="*.ts" --include="*.tsx" --include="*.sq
 ❯ tests/rls/mission-ai-drafts.rls.test.ts (12 tests) — all pass
 ```
 
-Hand review before execution had already caught two real bugs (the `array_length`/`cardinality` empty-array gap and the CASCADE/trigger conflict — see the design document's Section 6 implementation note), and live execution then caught a third, unrelated to this trigger specifically: see the `ai_inference_logs` grant finding below.
+Hand review before execution had already caught two real bugs (the `array_length`/`cardinality` empty-array gap and the CASCADE/trigger conflict). The architecture placement remains pending Emanuel's decision; see `docs/evidencia/2026-09-24-m2-canonical-conformance-decisions.md`. Live execution then caught a third issue, unrelated to this trigger specifically: see the `ai_inference_logs` grant finding below.
 
 ### Fail-closed under timeout / malformed output / rate limit (checked)
 
 Three dedicated tests in `inference-wrapper.test.ts`, plus the same three (plus cost ceiling and input validation) re-verified at the application layer in `generate-mission-ai-draft.test.ts`, asserting `draftWriter.write` is never called on any non-`ok` wrapper result. All pass under `npm test`.
 
-### `ai_inference_logs` schema (checked)
+### `ai_inference_logs` schema (structural evidence; Class B naming discrepancy)
 
 `supabase/migrations/20260922130000_create_ai_inference_logs.sql` implements every structural requirement in Section 6: strict FKs (`ON DELETE RESTRICT`), the immutable cost-accounting columns, both mandatory indices, declarative monthly partitioning, and (beyond the original spec) an append-only trigger. **Executed 22 Sep 2026** against local Postgres:
 
@@ -128,6 +128,19 @@ select table_name from information_schema.tables where table_schema='public';
 ```
 
 The two monthly partitions materialized exactly as `private.ai_inference_logs_ensure_partition()` was designed to do (current + next calendar month), confirmed by direct SQL, not by reading the function body.
+
+The canonical `$20.00` development bancada ceiling is objectively trackable from these integer rows without adding a production runtime blocker:
+
+```sql
+select
+  coalesce(sum(cost_usd_micros), 0)::bigint as accumulated_cost_usd_micros,
+  20000000::bigint as budget_usd_micros,
+  20000000::bigint - coalesce(sum(cost_usd_micros), 0)::bigint
+    as remaining_budget_usd_micros
+from public.ai_inference_logs;
+```
+
+Run this only against the isolated Milestone 2 test/bancada database. `20,000,000` micros USD equals `$20.00`; this query tracks the development ceiling but does not introduce an autonomous production blocking policy.
 
 **Live execution also caught a real bug hand review had missed:** `information_schema.role_table_grants` showed `authenticated`/`anon` held `UPDATE`/`DELETE`/`TRUNCATE` on `ai_inference_logs` despite the migration only issuing `grant select, insert`. This Supabase project's default privileges grant full DML to `anon`/`authenticated` on every new `public` table; a `GRANT` is additive and never revokes that pre-existing grant. The security boundary itself had not been broken — RLS with no `UPDATE`/`DELETE` policy silently matches zero rows rather than erroring, and the row was confirmed unchanged — but the intended defense-in-depth (a hard `permission denied`, not an implicit RLS no-op) was missing. Fixed with an explicit `revoke all on public.ai_inference_logs from anon, authenticated;` (and the equivalent for `mission_ai_drafts`, which had the same gap for `DELETE`) before the `grant select, insert` line. Re-verified after the fix, via a full `supabase db reset` replay:
 
@@ -147,7 +160,11 @@ npm run typecheck -> clean
 npm run lint      -> 0 errors, 0 new warnings
 npm run build     -> compiles clean, /w/[workspaceSlug]/projects/[projectId]/missions/[missionId] generated as dynamic
 npm run test:rls  -> 3 passed (3), 31 passed (31), exit code 0 -- against real local Docker Postgres
-npm run test:e2e  -> NOT RUN (no automated Playwright coverage written yet for this flow; the flow itself has now been verified manually -- see "Model call against a real provider" above)
+npm run test:e2e  -> Run 3x against a production build (npm run build && npm run start). No run
+                     reproduced the Turbopack dev-server crash. All three stopped at draft
+                     generation: one observed HTTP 503; two recorded latency_ms 15012 and 15015
+                     before timing out. No run completed the full automated flow, and these
+                     observations do not isolate provider, network, or client as the sole cause.
 ```
 
 `test:rls` raw final run:
@@ -220,26 +237,29 @@ grep -rn "fetch(|axios|http://|https://" features/ai/
 
 ## Additional Gaps Identified (not in the original Section 5 list)
 
-- **`docs/superpowers/specs/2026-09-21-ai-showroom-v1-milestone-2-design.md` decision sync.** Addressed by an earlier documentation pass: the $0.02 cost ceiling, the `mission_ai_drafts` Option B decision, and the `ai_inference_logs` naming/`RESTRICT` decision are recorded inline in the design document with ratification notes.
+- **Canonical design provenance restored.** `docs/superpowers/specs/2026-09-21-ai-showroom-v1-milestone-2-design.md` is restored exactly to `d2ee57a`. Later implementation choices and the Class C HOLD now live in `docs/evidencia/2026-09-24-m2-canonical-conformance-decisions.md`, not in the ratified historical document.
 - **No component/interaction test harness.** No `@testing-library/react`, no jsdom/happy-dom, `vitest.config.mts` stays `environment: "node"`. UI logic that is pure (badge/status mapping, prompt-length validation) is unit-tested in `tests/unit/draft-presentation.test.ts`; actual render/click interaction is not.
 - **~~No real browser session exercised against live data.~~ Resolved 22 Sep 2026.** A real signed-in session, on `npm run dev`, generated and approved a draft through the actual UI against the local Supabase instance and a real `gemini-3.6-flash` call -- see "Model call against a real provider" above. `npm run test:e2e` (automated Playwright) is a separate, still-open item -- this was manual, not scripted.
 - **Default-privilege drift across the schema, beyond just the two new tables.** The `ai_inference_logs`/`mission_ai_drafts` grant gap this session found and fixed (see above) is a property of this Supabase project's default privileges, not of those two migrations specifically. Whether the same implicit over-grant exists on Milestone 1's own tables was not audited as part of this pass — out of scope here since Milestone 1 is FROZEN, but worth a dedicated look before assuming its `grant select, insert, update, delete` lines are the *only* privileges those tables carry.
 - **Both `.env.test.local` and `.env.local` pointed at the hosted production project before this session.** `.env.test.local` was caught and fixed before the first `test:rls` run. `.env.local` -- the file `npm run dev` actually reads -- was caught separately, immediately before the manual browser verification above, the same way: re-checked fresh, found still pointing at `yljvselkecxdfrqwyums.supabase.co`, corrected to `http://127.0.0.1:54321` before the dev server was ever started. Both files are gitignored; both were pre-existing states on this machine, not something introduced by Milestone 2. Worth checking whether other machines/checkouts have the same misconfiguration, and worth asking why the default local checkout points at production at all.
 - **Real hydration bug found and fixed via E2E testing, 22 Sep 2026.** `MissionAiDraftCard`'s "Approved <timestamp>" line called `new Date(...).toLocaleString()` with no explicit locale. Node's server-side default locale (`9/22/2026, 5:52:51 PM`) rendered differently from the browser's (`22/09/2026, 5:52:51 PM`), producing a genuine SSR/client hydration mismatch caught only because a real browser loaded the real page -- no unit test could have found this. Fixed by pinning an explicit locale (`toLocaleString("en-GB")`) so server and client always agree.
-- **`npm run test:e2e` for this flow is written but cannot complete in this dev environment right now -- a reproducible upstream Next.js 16.3.3 + Turbopack bug, not an application bug.** Three independent attempts (each against a freshly-restarted `npm run dev`) all crashed the dev server with the same `RangeError: Map maximum size exceeded` inside Turbopack's async-hooks instrumentation (`AsyncHook.init`, inside `node_modules/next/dist/compiled/next-server/app-page-turbo.runtime.dev.js`), triggered specifically by `useActionState` -- the hook every form in this app uses (`CreateWorkspaceForm`, `CreateProjectForm`, `CreateMissionForm`, `GenerateDraftForm`). All three crashes happened right after the 2nd `useActionState` submission in the same server process (~42s each, itself abnormally slow and likely the leak becoming visible before the hard crash), consistently, regardless of server freshness. This is not specific to Milestone 2 code or to the Gemini integration -- it is a property of chaining multiple `useActionState`-bound Server Action submissions in one Turbopack dev session, and would eventually affect Milestone 1's own multi-step form flow too under the same conditions. The manual browser verification above (real Gemini call, real Approve, real DB rows) remains the standing proof this milestone's actual HITL flow works; automated Playwright coverage is ready (`tests/e2e/milestone-2-hitl.spec.ts`) and will run once this environment issue is resolved -- a Next.js/Turbopack version decision, or a dev-mode config change (e.g. disabling Turbopack for `next dev`), that needs sign-off before being made, since it touches how the whole app runs in development, not just this feature.
+- **The production-build Playwright harness did not reproduce the Turbopack dev-server crash.** Three runs using `npm run build` + `npm run start` reached draft generation after completing sign-in and workspace/project/mission creation. This supports using a production build for E2E, as recommended by the bundled Next.js Playwright guide. It does not establish a successful full automated HITL journey because all three runs stopped during generation.
+- **Automated provider-call observations remain inconclusive as to exclusive cause.** The three runs observed one HTTP 503 ("This model is currently experiencing high demand") and two approximately 15-second timeouts (`ai_inference_logs.latency_ms`: 15012 and 15015). Those records prove the response/error and measured latency seen by the wrapper; they do not alone distinguish provider availability from network or client-path causes. A separate earlier manual browser run (`8d85e0a6-...`, `latency_ms: 5027`, `status: success`) proves the manual flow completed at least once. No green automated E2E run is recorded.
 
 ## Pending Final Gate
 
-Local Docker/Supabase is now reachable, `test:rls` passes for real, and a real Gemini call has been generated and approved through the actual browser UI (see above). Remaining before this milestone can be called done:
+Local Docker/Supabase is reachable, `test:rls` has recorded passing evidence, and a real Gemini call was generated and approved during manual browser verification. The production-build Playwright harness avoids the observed dev-server crash, but an automated full-flow pass is still missing. Remaining before this milestone can be called done:
 
 ```powershell
-npm.cmd run test:e2e
+npm run build
+npm run start
+npx playwright test tests/e2e/milestone-2-hitl.spec.ts
 ```
 
 Still needed:
 
+- One clean automated `test:e2e` pass against the production build. Existing evidence does not establish whether the observed 503/timeouts require only an external recovery or also a client/network correction.
 - The full Supabase advisor pass (Auth/platform-level, not just schema lint — see above) against a linked project, showing no new finding introduced by either migration. Local Security + Performance advisors are now fully documented above; only the Auth-config category remains genuinely out of reach locally.
-- Resolving the Next.js 16.3.3 Turbopack `useActionState` crash (see above) so `tests/e2e/milestone-2-hitl.spec.ts` (already written) can actually run and pass.
 - A decision on whether to audit Milestone 1's tables for the same default-privilege gap (see above).
 
 ## Milestone Boundary

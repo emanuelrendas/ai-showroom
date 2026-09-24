@@ -4,6 +4,11 @@ import { createClient } from "@supabase/supabase-js";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const secretKey = process.env.SUPABASE_SECRET_KEY;
+const generationCount = 2;
+const maxGenerationAttempts = 2;
+const generationAttemptBudgetMs = 30_000;
+const retryBackoffMs = 5_000;
+const setupAndUiBudgetMs = 45_000;
 
 if (!supabaseUrl || !secretKey) {
   throw new Error("Missing E2E Supabase environment variables.");
@@ -16,12 +21,14 @@ const admin = createClient(supabaseUrl, secretKey, {
   },
 });
 
-// Real gemini-3.6-flash calls (~3-5s each, occasionally slower or
-// transiently 503) plus a full browser journey (sign-in, workspace, project,
-// mission, two generations, approve, dismiss) does not fit in the project's
-// default 30s test timeout. No mocks, no injected test double -- this hits
-// the real provider, per the ratified decision.
-test.setTimeout(120_000);
+// Budget: 45s for setup/UI plus two generations, each allowing one retry and
+// one 5s backoff: 45s + 2 * (2 * 30s + 5s) = 175s. No mocks or injected test
+// doubles: this exercises the real provider.
+test.setTimeout(
+  setupAndUiBudgetMs +
+    generationCount *
+      (maxGenerationAttempts * generationAttemptBudgetMs + retryBackoffMs),
+);
 
 test("Milestone 2 HITL browser journey with a real Gemini call", async ({ page }) => {
   const runId = randomUUID().replaceAll("-", "");
@@ -177,17 +184,22 @@ test("Milestone 2 HITL browser journey with a real Gemini call", async ({ page }
 async function generateDraftWithRetry(page: import("@playwright/test").Page) {
   const generateButton = page.getByRole("button", { name: /generate ai draft/i });
 
-  for (let attempt = 1; attempt <= 2; attempt++) {
+  for (let attempt = 1; attempt <= maxGenerationAttempts; attempt++) {
     await generateButton.click();
-    await expect(generateButton).toBeEnabled({ timeout: 30_000 });
+    await expect(generateButton).toBeEnabled({ timeout: generationAttemptBudgetMs });
 
     const errorRegion = page.locator('[role="status"][aria-live="polite"]').first();
     const errorText = (await errorRegion.textContent())?.trim();
 
     if (!errorText) return; // no error shown -> generation succeeded
-    if (attempt === 2) {
-      throw new Error(`Draft generation failed after retry: ${errorText}`);
+    if (attempt === maxGenerationAttempts) {
+      throw new Error(
+        `Draft generation failed after ${maxGenerationAttempts} attempts: ${errorText}`,
+      );
     }
     console.warn(`Draft generation attempt ${attempt} failed transiently: ${errorText}. Retrying.`);
+    // Short backoff: a "high demand" 503 needs a moment to clear, not an
+    // immediate hammer.
+    await page.waitForTimeout(retryBackoffMs);
   }
 }
