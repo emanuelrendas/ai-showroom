@@ -3,7 +3,13 @@
 **Date:** 24 September 2026
 **Canonical baseline:** `d2ee57ac67b5699dae9342a0b73bfbff674df069`
 **Branch:** `feature/milestone-2-single-model`
-**Status:** HOLD for the Class C item; Class B items recorded but not newly ratified here.
+**Decision authority:** Tiago under Part 18
+**Class:** B
+**Writer:** Codex
+**Collision check:** CLEAR
+**Pre-implementation SHA:** `6f754fdf290a05158f7c3f52d16b724879e16769`
+**Authorized blast radius:** M2 inference telemetry only
+**Status:** Telemetry Class-B decisions RATIFIED BY TIAGO UNDER PART 18. The Class-C `mission_ai_drafts` HOLD is unchanged.
 
 This record preserves implementation evidence outside the immutable ratified design. It does not amend that design and does not select an architecture on Emanuel's behalf.
 
@@ -36,21 +42,21 @@ This record preserves implementation evidence outside the immutable ratified des
 - **Current implementation:** `ON DELETE RESTRICT` for `workspace_id`, `project_id`, and `mission_id`.
 - **Canonical allowance:** Section 6 explicitly leaves `RESTRICT` versus `CASCADE` to implementation time.
 - **Effect:** a Mission hierarchy containing telemetry cannot be deleted while the log remains. This preserves the audit trail but changes container-deletion behavior.
-- **Status:** existing implementation preserved; written Tiago ratification remains pending.
+- **Decision:** RATIFIED BY TIAGO UNDER PART 18 on 24 September 2026. Preserve `ON DELETE RESTRICT` on all three telemetry foreign keys.
 
 ### Append-only telemetry trigger
 
 - **Current implementation:** unconditional `BEFORE UPDATE` and `BEFORE DELETE` rejection on `ai_inference_logs`, with client UPDATE/DELETE privileges also revoked.
 - **Effect:** strengthens telemetry integrity beyond the canonical minimum and interacts with FK deletion behavior.
 - **Class boundary:** no change to the human-approval architecture was identified, so this remains Class B unless Control Tower finds a Class C dependency.
-- **Status:** existing hardening preserved; written Tiago ratification remains pending.
+- **Decision:** RATIFIED BY TIAGO UNDER PART 18 on 24 September 2026. Preserve the database rejection triggers and revoked client mutation privileges.
 
 ### `ai_inference_logs` naming
 
 - **Current implementation:** `ai_inference_logs`; canonical name: `inference_logs`.
 - **Affected surfaces:** table and partition names, the canonical `idx_inference_logs_mission` / `idx_inference_logs_workspace_created` index names (currently `idx_ai_*`), partition helper, triggers, policies, generated database types, Supabase adapter, unit/RLS/E2E tests, and acceptance evidence.
 - **Safety classification:** a coordinated rename is bounded canonical conformance rather than architecture expansion. Before any non-disposable deployment, it can be performed by changing the branch migration and all references. If the migration has reached any persistent environment, use a forward rename migration instead of rewriting applied history.
-- **Status:** discrepancy recorded; no rename performed in this remediation and no canonical-equivalence claim made.
+- **Decision:** RATIFIED BY TIAGO UNDER PART 18 on 24 September 2026. Conform the table and associated telemetry objects to canonical `inference_logs` naming before M2 release. Migration method must fail closed: rewrite only if repository/environment evidence proves the existing migration never reached a persistent environment; otherwise use a forward rename migration.
 
 ## $20 Bancada Tracking
 
