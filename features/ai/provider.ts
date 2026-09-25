@@ -131,7 +131,66 @@ async function invokeGemini(
   };
 }
 
+// Deterministic test-only provider boundary, added 25 Sep 2026 for the M2
+// deterministic Playwright E2E suite (Block 3 of the M2 final acceptance
+// dispatch). The dispatch requires the automated E2E suite to use a
+// deterministic stub/fake provider -- no live model call, no token cost, no
+// network dependency on Gemini -- while the existing hand-verified
+// tests/e2e/milestone-2-hitl.spec.ts (real Gemini call) remains a separate,
+// optional, never-required-for-suite-success live smoke test.
+//
+// Gated behind a single, explicit, never-ambiguous env var. It is never set
+// in .env.example, .env.local, or any real deployment environment (Vercel) --
+// only in the dedicated local test env file the deterministic E2E runbook
+// documents. Setting it has zero effect unless someone deliberately exports
+// it, so it introduces no production behavior change and no security
+// weakening: invokeGemini (the real path) is completely untouched.
+const DETERMINISTIC_TEST_PROVIDER_ENV_VAR = "AI_SHOWROOM_DETERMINISTIC_TEST_PROVIDER";
+const DETERMINISTIC_STUB_MODEL_IDENTIFIER = "deterministic-stub-v1";
+
+function invokeDeterministicStub(
+  invocation: ModelProviderInvocation,
+): Promise<ModelProviderResult> {
+  const promptTokens = Math.max(
+    1,
+    Math.ceil(invocation.input.prompt_context.length / CHARS_PER_TOKEN_ESTIMATE),
+  );
+  const completionTokens = 48;
+
+  const payload: Record<string, unknown> = {
+    schema_version: "1.0.0",
+    summary: `[deterministic-stub] ${invocation.taskType} summary for mission ${invocation.input.mission_id}: ${invocation.input.prompt_context.slice(0, 120)}`,
+    suggested_actions: [
+      "Review the deterministic stub output for structural correctness.",
+      "Confirm the HITL approve/dismiss flow reaches this draft.",
+    ],
+    confidence_score: 0.87,
+    confidence_tier: "HIGH",
+    requires_human_review: true,
+  };
+
+  return Promise.resolve({
+    payload,
+    usage: {
+      promptTokens,
+      completionTokens,
+      model: DETERMINISTIC_STUB_MODEL_IDENTIFIER,
+    },
+    // Deterministic, tiny, well under the $0.02 / 20,000 usd_micros ceiling --
+    // computed with the same per-token formula as the real estimator so the
+    // ceiling logic itself is still exercised, not bypassed.
+    costUsdMicros: Math.ceil(
+      promptTokens * GEMINI_INPUT_USD_MICROS_PER_TOKEN +
+        completionTokens * GEMINI_OUTPUT_USD_MICROS_PER_TOKEN,
+    ),
+  });
+}
+
 export function getModelProviderAdapter(): ModelProviderAdapter {
+  if (process.env[DETERMINISTIC_TEST_PROVIDER_ENV_VAR] === "1") {
+    return { invoke: invokeDeterministicStub };
+  }
+
   return { invoke: invokeGemini };
 }
 

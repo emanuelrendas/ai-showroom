@@ -1,21 +1,38 @@
 # M2 — C2: Security Boundary Test and Mutation Proof — HOLD
 
-**Date:** 25 September 2026, GST
+**Date:** 25 September 2026, GST (implementation completed and handed off same day; execution still pending)
 **Branch:** `feature/milestone-2-single-model`
-**Status:** **HOLD — blocked on local Supabase stack image access, not executed.** This is not a PASS and not a FAIL; per the dispatch's own fail-closed rule ("Missing evidence = HOLD. Not PASS."), it is recorded honestly as neither.
+**Status:** **HOLD — implementation complete and committed, execution blocked on local Supabase stack image access in this session's environment. Handed to Tiago to run on his own machine (Emanuel's explicit decision, 25 Sep 2026).** This is not a PASS and not a FAIL; per the dispatch's own fail-closed rule ("Missing evidence = HOLD. Not PASS."), it is recorded honestly as neither, pending real RED/GREEN output from that run.
+
+## 25 September 2026 update — implementation is real, not a plan
+
+Everything below the "Test plan" and "Required mutation proof" headings was originally drafted as a description of what *would* be built. It is no longer a description — the test file exists, is committed, typechecks clean, lints clean, and its test list is confirmed loadable by Playwright:
+
+- **`tests/e2e/milestone-2-security-boundary.spec.ts`** implements every item in the test plan below as real, page-less Playwright tests, plus the required RED/GREEN mutation proof as its own test:
+  - `E2 — no shortcuts` — outsider RPC rejection, direct spoofing UPDATE rejection, and proof that `public.missions` cannot represent a fabricated AI-approved state (no such columns exist under Option B).
+  - `E3 — tenant isolation` — a user outside the workspace cannot see or mutate the Mission, `mission_ai_drafts`, or `inference_logs`.
+  - `E4 — mission window sealed` (two tests): direct `public.missions` mutation refusal from the real `authenticated` boundary, and the mutation proof itself.
+- **The mutation-proof test** runs the exact GREEN → RED → GREEN sequence from this record's "Required mutation proof" section, via `npx supabase db query --local --file <path>` against two new committed SQL fixtures:
+  - `scripts/c2-mutation-proof/disable-mission-ai-drafts-hitl-gate.sql` — `drop trigger if exists mission_ai_drafts_enforce_hitl_gate on public.mission_ai_drafts;`
+  - `scripts/c2-mutation-proof/restore-mission-ai-drafts-hitl-gate.sql` — the exact inverse, recreating the trigger byte-for-byte as defined in `supabase/migrations/20260922140000_create_mission_ai_drafts.sql`.
+  The disable/restore pair is wrapped in try/finally in the test so the trigger is restored even if an assertion fails mid-test, with a loud `console.error` fallback naming the manual restore command if the finally-block restore itself throws.
+- **`tests/e2e/milestone-2-hitl-deterministic.spec.ts`** (Block 3, E1) and its supporting `features/ai/provider.ts` deterministic-stub gate plus `tests/unit/provider-deterministic-stub.test.ts` were built alongside this (see `docs/evidencia/2026-09-25-m2-runbook-tiago.md` for the full picture) — E1 is a separate file, referenced here only because Tiago runs it in the same session as this proof.
+- Confirmed in this session, without a live database (so these checks do not themselves close C2, but do confirm the implementation is sound): `npm run typecheck` exit 0, `npm run lint` 0 errors, `npm test` 308/308 (up from 304 — the 4 new deterministic-stub unit tests), and `npx playwright test --list` correctly enumerates all 5 new E1–E4 tests across both spec files with no parse or load errors.
+
+What is still genuinely missing, and all this update changes, is **execution against a live local Postgres** — the Docker registry blocker below is unchanged and this session still cannot produce it. That is why status stays HOLD, not PASS: an unexecuted test, however well-built, is not evidence of the boundary holding.
 
 ## Real credential/path under test (derived from C1, not invented)
 
 Per `docs/evidencia/2026-09-25-m2-c1-missions-write-map.md`, the only real, reachable AI/server execution boundary in M2 is the Postgres `authenticated` role, exercised through `lib/supabase/server.ts`'s `createServerClient` (publishable key, session-bound cookies) — the exact client construction used by `generateMissionAiDraftAction` and every other M2 server action. There is no separate "AI role," service context, or elevated credential anywhere in this call chain; C1 confirmed this by exhaustive code search rather than assumption. This record does **not** invent a synthetic boundary production/app code never uses, per the dispatch's explicit safeguard.
 
-## Test plan (drafted, not yet executed)
+## Test plan (implemented in `tests/e2e/milestone-2-security-boundary.spec.ts`, not yet executed)
 
 1. **Direct Mission INSERT from the `authenticated` boundary**, using a signed-in test client (same construction pattern as `tests/rls/mission-ai-drafts.rls.test.ts`): confirm `missions_insert_member` RLS still requires `created_by = auth.uid()` and workspace membership (already covered by production code's existing behavior; new assertion needed only to pin it as a regression guard).
 2. **Direct Mission UPDATE from the `authenticated` boundary** attempting to set any hypothetical AI-approval-shaped value: since `public.missions` has no `is_ai_generated`/`approved_by`/`approved_at` columns under the ratified Option B architecture, this step proves the negative directly — such an UPDATE is rejected at the schema level (unknown column) before RLS is even evaluated, which is itself evidence that no AI-approval spoofing surface exists on `missions` at all under Option B.
 3. **The actual Section-4.4-equivalent boundary under Option B: `mission_ai_drafts`.** Re-run, as a new pinned regression test (not merely re-citing the 12 existing tests in `tests/rls/mission-ai-drafts.rls.test.ts`), the direct-client and direct-service-role spoofing attempts against `mission_ai_drafts.status = 'applied'` with forged `approved_by`/`approved_at`, confirming both RLS (`mission_ai_drafts_update_member`'s `with check`) and the independent `BEFORE UPDATE` trigger (`private.enforce_mission_ai_draft_hitl_gate()`) reject them.
 4. **Authorized human path remains functional**: `approve_mission_ai_draft(uuid)` still succeeds for a legitimate workspace member against a `pending_review` draft they're authorized to see.
 
-## Required mutation proof (not yet executed)
+## Required mutation proof (implemented as a single test, not yet executed)
 
 Per the dispatch's required pattern:
 
@@ -50,12 +67,12 @@ The session's egress proxy status endpoint confirms this is a policy denial, not
 
 ## What is needed to close this
 
-One of:
+**Emanuel's decision, 25 September 2026: option 2, below.** Tiago runs the already-committed, already-implemented test suite on his own machine (no registry blocker there) and returns the raw output. The exact steps he needs are in `docs/evidencia/2026-09-25-m2-runbook-tiago.md`.
 
-1. This session's outbound egress policy is extended to allow `registry-1.docker.io` and `ghcr.io` (or an internal mirror) for the duration of this mission, after which the test plan above is executed exactly as written and this record is updated with the real RED/GREEN output; or
-2. A human operator (or a session with the required registry egress) runs the equivalent local sequence — `supabase start`, then the new pinned `mission_ai_drafts` mutation-proof test file, then the RED/GREEN sequence above — from this exact branch/commit, and returns the raw output for this record; or
-3. Emanuel accepts recording this Class-C item as CONDITIONAL (unchanged from its pre-mission state) rather than CLOSED, pending either of the above.
+1. ~~This session's outbound egress policy is extended...~~ — not pursued; superseded by option 2.
+2. **A human operator runs the equivalent local sequence** — `npx supabase start` (or `db reset --local`), then `npx playwright test tests/e2e/milestone-2-security-boundary.spec.ts`, which executes the RED/GREEN sequence above as part of its own test run — from this exact branch/commit, and returns the raw output for this record. **This is now in progress: Tiago is running this on his Windows machine per the runbook.**
+3. If Tiago's environment also cannot produce a clean run, fall back to Emanuel accepting this Class-C item as CONDITIONAL (unchanged from its pre-mission state) rather than CLOSED.
 
 ## Result
 
-**C2: HOLD.** No RED result, no GREEN result — neither executed. **The acceptance matrix is NOT advanced to 10/12 on the strength of this record.** C1 and C3 evidence stand on their own and are unaffected by this HOLD.
+**C2: HOLD.** No RED result, no GREEN result — neither executed **in this session**. The test that will produce them is fully implemented, committed, typechecked, linted, and confirmed loadable by Playwright — only the live-database execution step remains, and it is now with Tiago. **The acceptance matrix is NOT advanced to 10/12 on the strength of this record.** C1 and C3 evidence stand on their own and are unaffected by this HOLD. This record will be updated in place with the real RED/GREEN output once Tiago reports back.

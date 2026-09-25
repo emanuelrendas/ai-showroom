@@ -1,0 +1,24 @@
+-- C2 / Block 3 mutation proof — RED step.
+--
+-- Purpose: this script exists ONLY to be run once, transiently, inside the
+-- E4 mutation-proof test in tests/e2e/milestone-2-security-boundary.spec.ts
+-- (see docs/evidencia/2026-09-25-m2-c2-missions-mutation-proof.md, "required
+-- mutation proof"). It proves the DB-level HITL enforcement trigger is the
+-- thing actually stopping the unauthorized transition — not RLS, not app
+-- code, not a coincidence — by removing it, showing the previously-blocked
+-- mutation now succeeds (or at least is no longer blocked BY THIS
+-- mechanism), and then immediately restoring it via
+-- restore-mission-ai-drafts-hitl-gate.sql in the same test's finally block.
+--
+-- This does not touch the hosted Supabase project (yljvselkecxdfrqwyums stays
+-- paused throughout, per the dispatch's NO HOSTED SUPABASE RESTORE
+-- constraint). It runs only against the local stack started by
+-- `npx supabase start`, via `supabase db query --local --file <this file>`.
+--
+-- Exact inverse of the trigger creation in
+-- supabase/migrations/20260922140000_create_mission_ai_drafts.sql (lines
+-- 83-85). Nothing else in that migration is touched: the function itself
+-- (private.enforce_mission_ai_draft_hitl_gate) is left in place, only the
+-- trigger binding it to public.mission_ai_drafts is removed.
+
+drop trigger if exists mission_ai_drafts_enforce_hitl_gate on public.mission_ai_drafts;
