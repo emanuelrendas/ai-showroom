@@ -5,7 +5,7 @@
 **Base HEAD (input to this remediation):** `1c36ab95cf90e4bd3b14ae102614834d1820e025`
 **Class:** B (ACL hygiene, forward-only, no application/RLS/trigger change)
 **Writer:** Claude Code (Sonnet 5)
-**Status:** Implemented, self-verified locally against a real Postgres 16 replay. NOT yet verified by Tiago. E2E stays blocked until his clean replay confirms this migration.
+**Status:** Implemented, self-verified locally against a real Postgres 16 replay, and CONFIRMED by Tiago's Windows execution on 25 Sep 2026 — see "25 September 2026 — CONFIRMED BY TIAGO" section at the end of this file.
 
 This record documents an independent falsification pass under Part 18. Tiago's Block 2B finding is treated as CLAIM until re-derived from source and from a live database, not as FACTO on report alone.
 
@@ -53,6 +53,16 @@ With zero grants on any child partition, an `authenticated` role acting as a rea
 **E — advisor result after clean replay.**
 The literal Supabase advisor CLI could not run in this sandbox (Docker unavailable, see disclosure above). Its two underlying checks were reproduced directly by SQL against the clean replay: the excessive-ACL condition is **0 rows** (evidence A/B), and the `rls_enabled_no_policy` INFO condition (RLS enabled, zero partition-level policies) is unchanged and still present on every partition — expected, since partitions correctly rely on the parent's policies and this migration does not touch RLS. Tiago's own `supabase db advisor` run against his real local stack is the authoritative confirmation of E and remains required before this closes.
 
-## What Tiago still needs to verify
+## What Tiago still needs to verify [as of this original record]
 
 This record does not substitute for his clean replay. It narrows it to: confirm the migration file applies cleanly after `20260924124625` on his machine, confirm his own advisor run shows 0 ERROR / 0 WARN / exactly the 2 pre-existing INFO (no new findings), and re-run `npm run test:rls` for 31/31 (this migration touches only GRANT/REVOKE statements and the partition-creation helper, not any RLS policy, table structure, or trigger the existing suite exercises, so no regression is expected — but it was not run against the actual suite in this session and must not be assumed).
+
+## 25 September 2026 — CONFIRMED BY TIAGO
+
+Tiago ran the full runbook (`docs/evidencia/2026-09-25-m2-runbook-tiago.md`) on his isolated Windows clone, this branch's HEAD `345b18c57963f7f996c0d8650fa3922003b49949` (which includes this migration). Results, matching every prediction in this record exactly:
+
+- **`npm.cmd run test:rls`: 31/31 PASS** (no regression — confirms A/C/D above: this migration's GRANT/REVOKE-only change did not disturb RLS, append-only behavior, or any other tested boundary).
+- **`npx supabase db advisors --local --type security --level info`: 0 ERROR / 0 WARN / 2 INFO** — exactly the 2 pre-existing `rls_enabled_no_policy` findings this record's Evidence E predicted, no new finding.
+- **Direct post-remediation query, run by Tiago himself:** `select * from information_schema.role_table_grants where table_name like 'inference_logs_%' and grantee in ('anon','authenticated')` → **0 rows** (was 28 pre-remediation). This is the authoritative, independent confirmation this record's "What Tiago still needs to verify" section called for.
+
+**Status: CLOSED.** The child-partition ACL defect is remediated and independently confirmed on real hardware, not only in this session's hand-built Postgres replay. The severity finding (`TRUNCATE` bypass) stands as the honest record of what this defect actually was — not reduced to harmless INFO at any point in this record or in `docs/acceptance/milestone-2.md`. Hosted project `yljvselkecxdfrqwyums` remained paused/inactive throughout Tiago's verification.

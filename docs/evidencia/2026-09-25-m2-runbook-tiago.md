@@ -1,5 +1,7 @@
 # M2 — Runbook for Tiago: run the blocked verification steps locally
 
+**COMPLETED 25 September 2026.** Tiago ran this runbook in full on his isolated Windows clone at this branch's HEAD `345b18c57963f7f996c0d8650fa3922003b49949` and returned real results for every step. Full folded-in results are in `docs/evidencia/2026-09-25-m2-c2-missions-mutation-proof.md`, `docs/evidencia/2026-09-25-m2-local-security-advisor.md`, `docs/evidencia/2026-09-25-m2-block3-command-suite.md`, `docs/evidencia/2026-09-25-block-2b-inference-logs-acl-remediation.md`, and the final closure in `docs/acceptance/milestone-2.md`. The instructions below are left exactly as written — preserved as the procedure that was actually followed, not rewritten after the fact.
+
 **Date:** 25 September 2026, GST
 **Repo:** `emanuelrendas/ai-showroom`
 **Branch:** `feature/milestone-2-single-model`

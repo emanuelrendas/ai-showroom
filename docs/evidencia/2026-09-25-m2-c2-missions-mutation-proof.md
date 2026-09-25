@@ -1,8 +1,8 @@
-# M2 — C2: Security Boundary Test and Mutation Proof — HOLD
+# M2 — C2: Security Boundary Test and Mutation Proof — SUPERSEDED, now PASS
 
-**Date:** 25 September 2026, GST (implementation completed and handed off same day; execution still pending)
+**Date:** 25 September 2026, GST (implementation completed and handed off same day; execution completed later the same day)
 **Branch:** `feature/milestone-2-single-model`
-**Status:** **HOLD — implementation complete and committed, execution blocked on local Supabase stack image access in this session's environment. Handed to Tiago to run on his own machine (Emanuel's explicit decision, 25 Sep 2026).** This is not a PASS and not a FAIL; per the dispatch's own fail-closed rule ("Missing evidence = HOLD. Not PASS."), it is recorded honestly as neither, pending real RED/GREEN output from that run.
+**Status:** **PASS, closed 25 Sep 2026 via Tiago's Windows execution — see "25 September 2026 — CLOSED" section at the end of this file. Everything below this point, down to that section, is the original HOLD record, preserved unchanged as the genuine historical account of this cloud session's own environment blocker and of the two E2E-harness defects Tiago's own runs first surfaced (both fixed, see the closing section).**
 
 ## 25 September 2026 update — implementation is real, not a plan
 
@@ -73,6 +73,27 @@ The session's egress proxy status endpoint confirms this is a policy denial, not
 2. **A human operator runs the equivalent local sequence** — `npx supabase start` (or `db reset --local`), then `npx playwright test tests/e2e/milestone-2-security-boundary.spec.ts`, which executes the RED/GREEN sequence above as part of its own test run — from this exact branch/commit, and returns the raw output for this record. **This is now in progress: Tiago is running this on his Windows machine per the runbook.**
 3. If Tiago's environment also cannot produce a clean run, fall back to Emanuel accepting this Class-C item as CONDITIONAL (unchanged from its pre-mission state) rather than CLOSED.
 
+## Result [as of this original record]
+
+**C2: HOLD.** No RED result, no GREEN result — neither executed **in this session**. The test that will produce them is fully implemented, committed, typechecked, linted, and confirmed loadable by Playwright — only the live-database execution step remains, and it is now with Tiago. **The acceptance matrix is NOT advanced to 10/12 on the strength of this record.** C1 and C3 evidence stand on their own and are unaffected by this HOLD.
+
+## 25 September 2026 — CLOSED
+
+Tiago's first two Windows runs surfaced two real E2E-harness defects — not application, RLS, or HITL defects — both since fixed on this branch:
+
+1. **`npx.cmd` EINVAL.** `runSupabaseDbQueryFile()` in `tests/e2e/milestone-2-security-boundary.spec.ts` invoked `npx.cmd` directly via `execFileSync`, which Windows rejects (`spawnSync npx.cmd EINVAL`). Fixed by spawning `cmd.exe` directly instead, preserving argv-array safety (no shell-injection regression, every argument a fixed repo-controlled literal). Commit `90c0115b7dc6d9a2db39a87df0636fb51583f060`.
+2. **Multi-statement restore SQL rejected under the extended query protocol.** `scripts/c2-mutation-proof/restore-mission-ai-drafts-hitl-gate.sql` had two top-level statements (`drop trigger`, `create trigger`); `supabase db query --local --file` submits file contents via the Postgres extended query protocol, which rejects more than one command per Parse ("cannot insert multiple commands into a prepared statement"). This occurred *after* the trigger had already been disabled for the RED step; Tiago manually restored it and independently verified `mission_ai_drafts_enforce_hitl_gate` was back (`1 row`). Fixed by wrapping both statements in a single `DO $$ ... $$` block — one SQL command to the parser regardless of what it contains — reproduced and confirmed against a real Postgres 16 instance via node-postgres' named-statement (extended-protocol) form before being applied here. A second, unrelated nondeterminism source was fixed in the same commit: the E1 test's static Mission title collided with legitimate `ON DELETE RESTRICT` residue from repeated runs, causing `.single()` to fail nondeterministically; fixed via a `runId`-unique title. Commit `345b18c57963f7f996c0d8650fa3922003b49949` (this branch's current HEAD).
+
+With both fixes in place, Tiago reran on Windows:
+
+```
+npm.cmd run test:e2e -- tests/e2e/milestone-2-hitl-deterministic.spec.ts tests/e2e/milestone-2-security-boundary.spec.ts
+```
+
+**RESULT: 5 passed.** E1 (full deterministic generate → review → approve → DB verification), E2 (no shortcuts), E3 (tenant isolation), E4 (direct `public.missions` mutation refused), and the E4 mutation proof itself — GREEN (trigger active, spoofing rejected) → RED (trigger dropped via `disable-mission-ai-drafts-hitl-gate.sql`, spoofing attempt now succeeds, proving the trigger — not RLS — is what the test detects) → RESTORE (single `DO` block) → GREEN again (spoofing rejected once more).
+
+Tiago then built the app (`npm.cmd run build`, PASS, Next.js 16.3.3/Turbopack, 6/6 static pages) and started the production artifact (`next start`, port 3000), and reran the same two spec files against that live production-build server: **5 passed** again, independently, with Playwright reusing the running production server rather than its own dev instance.
+
 ## Result
 
-**C2: HOLD.** No RED result, no GREEN result — neither executed **in this session**. The test that will produce them is fully implemented, committed, typechecked, linted, and confirmed loadable by Playwright — only the live-database execution step remains, and it is now with Tiago. **The acceptance matrix is NOT advanced to 10/12 on the strength of this record.** C1 and C3 evidence stand on their own and are unaffected by this HOLD. This record will be updated in place with the real RED/GREEN output once Tiago reports back.
+**C2: PASS.** Real, executed RED/GREEN evidence exists (via Tiago's Windows run, not this session's own execution — this session's Docker/registry blocker is unchanged and disclosed above). The mutation proof specifically isolated the trigger as the protection under test, independent of RLS. This acceptance-matrix item is now closed; see `docs/acceptance/milestone-2.md`, "M2 FINAL ACCEPTANCE CLOSURE." C1 and C3 evidence stand on their own and were independently re-verified as part of that same closure. Hosted project `yljvselkecxdfrqwyums` remained paused/inactive throughout — not restored, queried, or mutated.

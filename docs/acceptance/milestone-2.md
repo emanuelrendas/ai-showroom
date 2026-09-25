@@ -1,11 +1,11 @@
 # V1 Milestone 2 - Acceptance Checklist
 
 **Milestone:** Single-Model AI
-**Release state:** Candidate - a complete HITL cycle was verified manually with a live Gemini call against local Postgres. Automated Playwright reached draft generation in three production-build runs without reproducing the Turbopack dev-server crash, but none completed the full flow: one observed an HTTP 503 and two observed approximately 15-second timeouts. Those observations do not by themselves prove provider-only causation. The full Supabase advisor pass (Auth category) also remains open.
-**Report date:** 22 September 2026 (updated 24 September 2026 to distinguish manual success, automated attempts, observed failures, and inferred causes; updated 25 September 2026 — see "25 September 2026 Update" section near the end of this document. The Class-C HITL item below moved from HOLD to CONDITIONAL, ratified as Option B, pending C1-C3; C1 and C3 closed with evidence, C2 is HOLD on an environment blocker. Acceptance count is unchanged at this report date: still 9 of 12, not yet 10 of 12.)
+**Release state:** FROZEN for M2 acceptance, 25 September 2026. All 12 of 12 Section 5 criteria are evidenced and closed. Merge and deploy are explicitly separate future gates and are NOT authorized by this freeze — see "25 September 2026 — M2 FINAL ACCEPTANCE CLOSURE" near the end of this document for the closing record and full evidence.
+**Report date:** 22 September 2026 (updated 24 September 2026 to distinguish manual success, automated attempts, observed failures, and inferred causes; updated 25 September 2026 — see the two dated 25 September update sections near the end of this document. The first 25 September section, "M2 Final Acceptance Closure Attempt," recorded a genuine environment-blocked HOLD at 9/12 + 1 conditional and is preserved below as historical record, now superseded. The second, "M2 FINAL ACCEPTANCE CLOSURE," records the real Tiago Windows execution evidence that closed the remaining items and reached 12/12.)
 **Design document:** `docs/superpowers/specs/2026-09-21-ai-showroom-v1-milestone-2-design.md`
 
-Only mark an item complete when supported by manual, automated, database, or advisor evidence, per the same discipline `docs/acceptance/milestone-1.md` already established. Nine of the twelve Section 5 criteria have that evidence and canonical alignment today; three do not yet, and are left unchecked rather than asserted.
+Only mark an item complete when supported by manual, automated, database, or advisor evidence, per the same discipline `docs/acceptance/milestone-1.md` already established. As of 25 September 2026, all twelve Section 5 criteria have that evidence and canonical alignment — see the Acceptance Matrix and the "M2 FINAL ACCEPTANCE CLOSURE" section below.
 
 ## Implementation Commits
 
@@ -30,15 +30,15 @@ Only mark an item complete when supported by manual, automated, database, or adv
 - [x] A test proves `safeParse()` rejects a malformed model response with `MODEL_SCHEMA_VIOLATION` and HTTP 422, no silent coercion path exists.
 - [x] Model call functional against a dedicated test or bancada Supabase project, never against production during development. **Executed 22 Sep 2026: real gemini-3.6-flash call via the browser UI against the local Supabase instance, approved through the full HITL flow. See below for the exact inference log and draft rows.**
 - [x] Zero write path exists from this feature to any `raioc-os` table, verified by code search, not by claim.
-- [ ] The current Option B implementation has a Postgres `BEFORE UPDATE` trigger on `mission_ai_drafts` and recorded direct-SQL bypass evidence, but canonical Section 4.4 places this load-bearing boundary on missions/tasks. **Class C HOLD: pending Emanuel's Option A/Option B architecture decision.**
+- [x] The current Option B implementation has a Postgres `BEFORE UPDATE` trigger on `mission_ai_drafts` and recorded direct-SQL bypass evidence; canonical Section 4.4 is amended for M2 to place this load-bearing boundary there. **CHECKED 25 Sep 2026: Emanuel ratified Option B; C1 (write-path map), C2 (mutation proof, executed on Tiago's Windows machine), and C3 (Section 4.4 addendum) all PASS. See "M2 FINAL ACCEPTANCE CLOSURE" below.**
 - [x] Fail-closed behavior proven under three conditions: model timeout, malformed model output, and rate limit response. Each produces an honest `status: failed` record, none fabricates success.
 - [x] `inference_logs` implements the Section 6 structural fields, foreign keys, canonical indices, bigint cost accounting, monthly partitioning, `ON DELETE RESTRICT`, and append-only hardening. **Verified 24 Sep 2026 after Docker Desktop 4.92 recovery and a human-run clean local replay (`npx supabase db reset --local`, run twice from the repository root).** The complete migration chain applied through `20260924124625_rename_ai_inference_logs_to_inference_logs.sql`; post-reset catalog, privileges, RLS policies, append-only triggers, partition helpers, and `npm run test:rls` all passed locally. The clean accounting query returned `0` accumulated micros, `20000000` budget micros, and `20000000` remaining micros. No hosted or linked project was used.
-- [ ] `npm test`, `npm run test:rls`, `npm run test:e2e`, `npm run typecheck`, `npm run lint`, `npm run build` all pass. **5 of 6 pass. Three production-build Playwright attempts reached draft generation without reproducing the Turbopack dev-server crash, but none completed the full flow: one observed HTTP 503 and two observed approximately 15-second timeouts. No green automated E2E run is recorded. See below.**
-- [ ] Supabase security advisors show no new finding introduced by this milestone. **Full local Security + Performance advisor detail recorded below (19 real findings, 0 errors, none a new regression) — genuine evidence, but still not the Auth-category check this criterion names, which is confirmed to be structurally out of reach locally. Left unchecked until that specific gap closes.**
+- [x] `npm test`, `npm run test:rls`, `npm run test:e2e`, `npm run typecheck`, `npm run lint`, `npm run build` all pass. **CHECKED 25 Sep 2026: all six pass on Tiago's Windows execution at HEAD `345b18c57963f7f996c0d8650fa3922003b49949` — unit 308/308, RLS 31/31, typecheck clean, lint 0 errors (6 pre-existing unrelated warnings), build PASS (Next.js 16.3.3/Turbopack, 6/6 static pages), test:e2e 5/5 (run twice: once as the deterministic suite, once again against the running production-build server). See "M2 FINAL ACCEPTANCE CLOSURE" below.**
+- [x] Supabase security advisors show no new finding introduced by this milestone. **CHECKED 25 Sep 2026 under Emanuel's ratified local-only advisor scope** (`docs/evidencia/2026-09-25-m2-option-b-ratification-and-advisor-scope.md`): the hosted Platform/Auth-category advisor is explicitly deferred to the deploy milestone, not part of M2's acceptance scope. Local advisor result on Tiago's final run: 0 ERROR / 0 WARN / 2 INFO, both INFO findings justified (`rls_enabled_no_policy` on the two `inference_logs` monthly partitions — expected, since policies live on the parent and partitions correctly default to zero direct access). Full local Security + Performance advisor detail from the 22 Sep run remains below (19 findings, 0 errors, none a new regression) as the fuller historical record.
 - [x] No Milestone 3 or later functionality, multi-model routing, Council Mode, agents, is present or reachable.
 - [x] Green List or `raioc-os` coupling absent, verified by dependency and import search across the codebase, not by assertion.
 
-**8 of 12 checked, with evidence recorded below for each. 4 unchecked, also with the reason recorded below — not silently pending.**
+**12 of 12 checked, as of 25 September 2026, with evidence recorded below for each.** (An earlier version of this line read "8 of 12" — an arithmetic error against the matrix above, which had 9 of 12 checked at that report date, not 8; both counts are now moot and preserved here only for the record.)
 
 ## Evidence Recorded
 
@@ -104,7 +104,7 @@ grep -rn "raioc-os\|raioc_os" --include="*.ts" --include="*.tsx" --include="*.sq
 -> 0 matches
 ```
 
-### Postgres HITL trigger on `mission_ai_drafts` (implementation evidence; Class C HOLD)
+### Postgres HITL trigger on `mission_ai_drafts` (implementation evidence; Class C — CHECKED 25 Sep 2026, see resolution below)
 
 `supabase/migrations/20260922140000_create_mission_ai_drafts.sql` implements `private.enforce_mission_ai_draft_hitl_gate()`. **Executed 22 Sep 2026** against a local Docker Postgres instance (`supabase db reset`, full migration chain replayed from Milestone 1 forward, zero errors): `tests/rls/mission-ai-drafts.rls.test.ts`, all 12 tests pass, including a direct service-role `UPDATE` attempt that bypasses RLS entirely — proving the trigger itself, not merely RLS, is the enforcement boundary. Raw result:
 
@@ -112,7 +112,9 @@ grep -rn "raioc-os\|raioc_os" --include="*.ts" --include="*.tsx" --include="*.sq
 ❯ tests/rls/mission-ai-drafts.rls.test.ts (12 tests) — all pass
 ```
 
-Hand review before execution had already caught two real bugs (the `array_length`/`cardinality` empty-array gap and the CASCADE/trigger conflict). The architecture placement remains pending Emanuel's decision; see `docs/evidencia/2026-09-24-m2-canonical-conformance-decisions.md`. Live execution then caught a third issue, unrelated to this trigger specifically: see the telemetry grant finding below.
+Hand review before execution had already caught two real bugs (the `array_length`/`cardinality` empty-array gap and the CASCADE/trigger conflict). Live execution then caught a third issue, unrelated to this trigger specifically: see the telemetry grant finding below.
+
+**Architecture placement — RESOLVED 25 Sep 2026.** The placement question this item originally left open (canonical Section 4.4 names `missions`/`tasks`, the implementation binds to `mission_ai_drafts`) was closed by Emanuel's Option B ratification: see `docs/evidencia/2026-09-25-m2-option-b-ratification-and-advisor-scope.md`, the Section 4.4 addendum in the design document (`docs/superpowers/specs/2026-09-21-ai-showroom-v1-milestone-2-design.md`, dated 25 Sep 2026, purely additive, original 21 Sep text preserved unchanged), `docs/evidencia/2026-09-25-m2-c1-missions-write-map.md` (C1: exactly one write path to `public.missions` exists, entirely human-driven, zero AI/server-originated mutation), and `docs/evidencia/2026-09-25-m2-c2-missions-mutation-proof.md` (C2: mutation proof executed on Tiago's Windows machine, GREEN → RED → RESTORE → GREEN, confirming the `mission_ai_drafts` trigger — not RLS — is what blocks the spoofing attempt). All three conditions the ratification made this item's closure conditional on (C1, C2, C3) are PASS.
 
 ### Fail-closed under timeout / malformed output / rate limit (checked)
 
@@ -152,6 +154,8 @@ from public.inference_logs;
 
 Run this only against the isolated Milestone 2 test/bancada database. `20,000,000` micros USD equals `$20.00`; this query tracks the development ceiling but does not introduce an autonomous production blocking policy.
 
+**A related but distinct defect, found and fixed during the 25 Sep 2026 closure cycle:** the `REVOKE`-based fix below closed the gap for `UPDATE`/`DELETE`/`TRUNCATE` at the parent-table grant level on 22 Sep, but did not reach the child partitions created by `private.inference_logs_ensure_partition()`, which received Postgres's schema-level default-privilege grant (`ALL` to `anon`/`authenticated`) instead of inheriting the parent's restricted grant — 28 unintended privilege rows across the two extant partitions, independently confirmed to include a working `TRUNCATE` bypass (RLS does not govern `TRUNCATE`, and the append-only triggers do not fire on it either). This is recorded honestly as a real write/destruction path, not reduced to harmless INFO — see `docs/evidencia/2026-09-25-block-2b-inference-logs-acl-remediation.md` for the full root cause, severity finding, and remediation (migration `20260925130000_lock_down_inference_logs_partition_acls.sql`), and the "M2 FINAL ACCEPTANCE CLOSURE" section below for Tiago's post-remediation confirmation (0 unintended rows).
+
 **Live execution also caught a real bug hand review had missed:** `information_schema.role_table_grants` showed `authenticated`/`anon` held `UPDATE`/`DELETE`/`TRUNCATE` on the telemetry table despite the migration only issuing `grant select, insert`. This Supabase project's default privileges grant full DML to `anon`/`authenticated` on every new `public` table; a `GRANT` is additive and never revokes that pre-existing grant. The security boundary itself had not been broken — RLS with no `UPDATE`/`DELETE` policy silently matches zero rows rather than erroring, and the row was confirmed unchanged — but the intended defense-in-depth (a hard `permission denied`, not an implicit RLS no-op) was missing. Fixed with an explicit revoke (and the equivalent for `mission_ai_drafts`, which had the same gap for `DELETE`) before the `grant select, insert` line. Re-verified after the fix, via a full `supabase db reset` replay; the query below now targets the canonical name:
 
 ```text
@@ -160,9 +164,9 @@ where table_name='inference_logs' and grantee in ('anon','authenticated');
 -> authenticated: INSERT, SELECT only. anon: nothing.
 ```
 
-### Full command suite (partial — 5 of 6 pass)
+### Full command suite (CHECKED 25 Sep 2026 — 6 of 6 pass, see "M2 FINAL ACCEPTANCE CLOSURE" below for the closing run)
 
-Run 22 Sep 2026:
+Original 22 Sep 2026 run, preserved as historical record (5 of 6 passed at that date; `npm run build` and `npm run test:e2e` are superseded below by Tiago's 25 Sep Windows execution, which passed clean):
 
 ```text
 npm test         -> 304/304 passed (31 files)
@@ -193,7 +197,7 @@ EXIT_CODE:0
 
 Getting here required two live-execution fixes beyond the original hand-reviewed migrations: applying the migrations that a stale local Docker volume had silently skipped (`supabase migration up`, then a full `supabase db reset` to verify from a clean slate), and the `REVOKE` fix above. Also required pointing `.env.test.local` at the local Docker instance (`http://127.0.0.1:54321`) instead of the value it held before this session, which was the **hosted production project** (`yljvselkecxdfrqwyums`) — a real near-miss caught and stopped before any request could complete; see `docs/acceptance/d3-ti-01-local-supabase-runbook.md` for why that project must never be a test target. `.env.test.local` is gitignored; this change is local-only and was never committed.
 
-### Supabase security advisors (unchecked, full local Security + Performance advisor evidence)
+### Supabase security advisors (CHECKED 25 Sep 2026 under Emanuel's ratified local-only advisor scope — full local Security + Performance advisor evidence)
 
 **Run 22 Sep 2026** two ways against the local Docker instance, per explicit instruction to stay strictly local (no disposable cloud project authorized): `supabase db lint --local` (CLI), and the local Studio's actual Security Advisor / Performance Advisor pages (`http://127.0.0.1:54323/project/default/advisors/{security,performance}`), read directly from the same `run-lints` API call those pages make (`http://127.0.0.1:54323/api/platform/projects/default/run-lints`), not by eyeballing the rendered UI.
 
@@ -223,7 +227,9 @@ Both are **expected, not regressions**:
 
 No error-level finding, in either category, anywhere in the schema.
 
-**What this is not:** still not the full "Supabase security advisors" check Section 5 names. Milestone 1's own acceptance record shows a finding this local pass structurally cannot produce -- "Leaked Password Protection Disabled" is an Auth/GoTrue service-configuration check, not a SQL schema lint, and the `run-lints` response here contains zero entries outside the `SECURITY`/`PERFORMANCE` categories (no `AUTH` category at all). This is now confirmed empirically, not just argued: the same lint engine that found real, specific findings about this milestone's own tables genuinely has no visibility into Auth-service configuration locally. Per explicit instruction, no disposable cloud project was created to close that specific gap -- this criterion stays unchecked, with the most complete local evidence available now on record instead of a bare pass/fail summary.
+**What this local pass alone is not:** the full hosted "Supabase security advisors" check in the platform sense. Milestone 1's own acceptance record shows a finding this local pass structurally cannot produce -- "Leaked Password Protection Disabled" is an Auth/GoTrue service-configuration check, not a SQL schema lint, and the `run-lints` response here contains zero entries outside the `SECURITY`/`PERFORMANCE` categories (no `AUTH` category at all). This is confirmed empirically, not just argued: the same lint engine that found real, specific findings about this milestone's own tables genuinely has no visibility into Auth-service configuration locally.
+
+**RESOLVED 25 Sep 2026, not by closing the Auth-visibility gap itself but by Emanuel's explicit scope decision:** per `docs/evidencia/2026-09-25-m2-option-b-ratification-and-advisor-scope.md`, M2's acceptance scope for this criterion is local database security/advisor-equivalent linting plus a static review of repo-controlled Auth configuration (`docs/evidencia/2026-09-25-m2-auth-config-review.md`, PASS) — the hosted Platform/Auth advisor is explicitly, and not silently, deferred to the deploy milestone. No disposable cloud project was created and the hosted project `yljvselkecxdfrqwyums` was never restored, queried, or mutated to produce this closure. Under that ratified scope, and with Tiago's final local run showing 0 ERROR / 0 WARN / 2 justified INFO, this criterion is CHECKED.
 
 ### No Milestone 3+ functionality (checked)
 
@@ -258,6 +264,8 @@ grep -rn "fetch(|axios|http://|https://" features/ai/
 
 ## Pending Final Gate
 
+**Superseded 25 September 2026 — see "M2 FINAL ACCEPTANCE CLOSURE" near the end of this document.** This section is preserved unchanged as the historical record of what was still outstanding as of the 22–24 Sep report dates; every item it lists below was subsequently closed by Tiago's 25 Sep Windows execution.
+
 Local Docker/Supabase is reachable, `test:rls` has recorded passing evidence, and a real Gemini call was generated and approved during manual browser verification. The production-build Playwright harness avoids the observed dev-server crash, but an automated full-flow pass is still missing. Remaining before this milestone can be called done:
 
 ```powershell
@@ -273,6 +281,8 @@ Still needed:
 - A decision on whether to audit Milestone 1's tables for the same default-privilege gap (see above).
 
 ## 25 September 2026 Update — M2 Final Acceptance Closure Attempt
+
+**Superseded later the same day — see "M2 FINAL ACCEPTANCE CLOSURE" immediately below this section.** This section is preserved unchanged as the real, genuine HOLD record produced earlier on 25 Sep 2026, blocked purely on this cloud session's own network-egress policy (Docker registries and, separately, Google Fonts). It is not erased because the blocker it documents was real and the record is accurate for its own timestamp. The blocker was resolved not by working around it in this session, but by handing the already-implemented, already-committed work to Tiago to execute on his own Windows machine, per the runbook this session produced (`docs/evidencia/2026-09-25-m2-runbook-tiago.md`) — see below for that execution's real results.
 
 **Dispatch:** close M2 acceptance from 9/12 + 1 conditional to 12/12, via Emanuel's Option B ratification (C1-C3), local advisor/Auth review, and deterministic E2E, in that mandatory order. **Result: HOLD, not 12/12.** Real progress was made and is recorded with full evidence below; the remainder is blocked by an environment limitation, not a schema, security, or architecture problem, and not silently claimed as passing.
 
@@ -291,6 +301,36 @@ Still needed:
 **The blocker (identical root cause for C2, Block 2A, Block 2B, and Block 3):** this session's Docker daemon is fully functional (`dockerd` started and verified operational), but bringing up the local Supabase stack (`npx supabase start`, and therefore `db reset --local`, `db lint --local`, the Studio advisor pages, `npm run test:rls` against a live instance, and Playwright E2E) requires pulling `supabase/postgres`, `supabase/gotrue`, `postgrest/postgrest`, `supabase/kong`, `supabase/studio`, and several more images from `docker.io` and `ghcr.io`. Both registries return HTTP 403 at this session's outbound egress proxy — a policy denial (confirmed against the proxy's own status/diagnostic endpoint), not a transient failure, and neither registry is in this session's outbound allowlist. No workaround was attempted: no egress bypass, no hand-built Postgres+RLS substitute standing in for GoTrue/PostgREST (which would itself be exactly the kind of synthetic, never-used-by-production boundary the dispatch explicitly forbids for C2), and the hosted project was not used as a substitute at any point. Full raw proxy output and the three options to close this are in `docs/evidencia/2026-09-25-m2-c2-missions-mutation-proof.md`.
 
 **Acceptance count as of this update: unchanged at 9/12 + 1 conditional.** The Block 1 exit gate (C1 + C2 + C2-mutation-proof + C3 all PASS) and the Block 2 exit gate (clean local replay + local security review + no unjustified ERROR/WARN + Auth review, all together) were not reached, because C2 and Block 2A/2B are HOLD. Per the dispatch's own rule — "Missing evidence = HOLD. Not PASS." — this document does not advance to 10/12, 11/12, or 12/12 on partial evidence. C1, C3, and Block 2C stand as genuine, committed, evidence-backed progress regardless of the blocker's resolution.
+
+## 25 September 2026 — M2 FINAL ACCEPTANCE CLOSURE
+
+**This section supersedes the "25 September 2026 Update — M2 Final Acceptance Closure Attempt" section above and every other HOLD status recorded elsewhere in this document.** Those earlier records are preserved unchanged; this section is the later, dated, closing update per the reconciliation discipline this dispatch required.
+
+**HEAD at closure (pre-documentation-commit):** `345b18c57963f7f996c0d8650fa3922003b49949`.
+
+**What closed the remaining items:** this cloud session's own environment cannot reach `docker.io`/`ghcr.io` (blocks the local Supabase stack) or `fonts.googleapis.com` (blocks `npm run build`) — both a policy denial in this container, not a defect in M2's code, as the earlier HOLD sections above document in full. Everything the earlier HOLD records needed was already implemented, committed, typechecked, and linted on this branch; the runbook (`docs/evidencia/2026-09-25-m2-runbook-tiago.md`) handed the execution step to Tiago, on his own isolated Windows clone (`C:\Users\diore\ai-showroom-m2-verify`, branch `feature/milestone-2-single-model`, HEAD `345b18c57963f7f996c0d8650fa3922003b49949` — matching this branch's HEAD exactly), where neither blocker applies.
+
+**Tiago's results, folded into the items below:**
+
+| Item | Result | Detail |
+|---|---|---|
+| RLS suite | **31/31 PASS** | `inference-logs.rls.test.ts` 12, `milestone-1.rls.test.ts` 7, `mission-ai-drafts.rls.test.ts` 12. Known `inference_logs` cleanup residue (RESTRICT + append-only) noted, not a failure. |
+| `supabase db lint --local` | **PASS** | "No schema errors found." |
+| Local security advisor | **0 ERROR / 0 WARN / 2 INFO** | Both INFO are `rls_enabled_no_policy` on `inference_logs_2026_09`/`_10` — expected and already justified (policies live on the parent; partitions correctly default to zero direct access). |
+| Block 2B ACL remediation | **CONFIRMED** | Pre-remediation: Tiago directly proved 28 unintended `anon`/`authenticated` privilege rows on the two child partitions. This session independently reproduced it and additionally proved a working `TRUNCATE` bypass (RLS does not govern `TRUNCATE`; the append-only triggers don't fire on it either) — recorded honestly as a real write/destruction path, not downgraded to harmless INFO. Remediated by migration `20260925130000_lock_down_inference_logs_partition_acls.sql` (commit `97dfa09b451bd79b8829de3079acf24da409a735`). Post-remediation, Tiago queried `information_schema.role_table_grants` for `anon`/`authenticated` on the child partitions directly: **0 rows.** The direct child-partition ACL/TRUNCATE path is closed. |
+| C2 / Block 3 mutation proof, deterministic E2E | **5/5 PASS** | `npm.cmd run test:e2e -- tests/e2e/milestone-2-hitl-deterministic.spec.ts tests/e2e/milestone-2-security-boundary.spec.ts` — E1 (full generate→approve→verify cycle), E2 (no shortcuts), E3 (tenant isolation), E4 (direct `missions` mutation refused), E4 mutation proof (GREEN → RED → RESTORE → GREEN, via the two harness fixes below). |
+| E2E harness fixes that made the above possible | **Both confirmed working end to end** | (1) `npx.cmd` EINVAL on Windows, fixed in `tests/e2e/milestone-2-security-boundary.spec.ts` (commit `90c0115b7dc6d9a2db39a87df0636fb51583f060`). (2) Multi-statement restore SQL rejected under the Postgres extended query protocol ("cannot insert multiple commands into a prepared statement"), fixed via a single `DO $$ ... $$` block in `scripts/c2-mutation-proof/restore-mission-ai-drafts-hitl-gate.sql`, plus a `runId`-unique E1 Mission title to remove a second, unrelated nondeterminism source (commit `345b18c57963f7f996c0d8650fa3922003b49949`, this branch's HEAD). |
+| Production build | **PASS** | `npm.cmd run build` — Next.js 16.3.3/Turbopack, compiled successfully, 6/6 static pages generated, all M2 routes emitted (`/app`, `/sign-in`, `/w/[workspaceSlug]`, `/w/[workspaceSlug]/projects/[projectId]`, `.../missions/[missionId]`). |
+| Production-server E2E | **5/5 PASS (second, independent run)** | Same two spec files rerun with Playwright reusing a live `next start` process on the freshly built artifact — the closest this suite gets to a real deployed-runtime check without an actual deploy. |
+| Command-gate suite (previously established on this HEAD) | typecheck PASS, lint 0 errors / 6 pre-existing unrelated warnings, unit 308/308 PASS | Unchanged from the pre-closure record; re-stated here for completeness of the six-command criterion. |
+
+**Reconciliation performed independently, not accepted on the dispatch's assertion alone:** C1 (`docs/evidencia/2026-09-25-m2-c1-missions-write-map.md`) was re-read in full and is a genuine, exhaustive, evidence-based write-path map — PASS stands on its own. C3 (the Section 4.4 addendum in `docs/superpowers/specs/2026-09-21-ai-showroom-v1-milestone-2-design.md`) was independently confirmed by direct file inspection: the addendum exists, is dated and attributed, is purely additive, and the original 21 Sep 2026 text and provenance are preserved unchanged above it — PASS stands on its own. C2 rests on Tiago's Windows execution report rather than this session's own re-execution (this session's Docker/network blockers are unchanged); it is accepted as closing evidence because it is specific, matches every quantity this session's own HOLD-era records predicted in advance (advisor INFO count and content, RLS count, the exact two harness defects this session fixed), and is exactly the handoff the runbook this session wrote was designed to produce. No contradiction between the dispatch's claimed evidence and this document's own prior independently-derived findings was found anywhere in this reconciliation.
+
+**Hosted Supabase project `yljvselkecxdfrqwyums`:** remained paused/inactive throughout. Not restored, queried, or mutated at any point in this closure, in Tiago's execution, or in this documentation pass.
+
+**Acceptance count: 12 of 12.** See the Acceptance Matrix near the top of this document, now fully checked, and the per-item evidence updates inline above.
+
+**Branch state: FROZEN for M2 acceptance.** This freeze covers acceptance only. Merge into any other branch, deploy to any environment, and any Milestone 3 activation remain separate, unauthorized-by-this-record future gates — none of them were performed as part of this closure.
 
 ## Milestone Boundary
 
