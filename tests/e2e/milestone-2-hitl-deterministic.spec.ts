@@ -36,6 +36,13 @@ test("E1 — full HITL cycle against the deterministic stub provider (generate, 
   const email = `e2e-det-${runId}@example.com`;
   const password = `Test!${randomUUID()}Aa1`;
   const workspaceSlug = `e2e-det-${runId}`;
+  // Unique per run, same idiom as workspaceSlug/email above. A static title
+  // makes repeated runs leave same-titled Mission residue (inference_logs'
+  // ON DELETE RESTRICT means a run whose cleanup hit that expected residue
+  // leaves its Mission behind), and the DB-verification .eq("title", ...)
+  // below then matches more than one row, so .single() fails nondeterministically
+  // on a title that was never unique to this run in the first place.
+  const missionTitle = `Verify Deterministic HITL Cycle ${runId}`;
 
   let userId = "";
   let missionId = "";
@@ -84,7 +91,7 @@ test("E1 — full HITL cycle against the deterministic stub provider (generate, 
 
     await page.getByRole("link", { name: /AI Showroom E2E Deterministic/i }).click();
 
-    await page.getByLabel("Mission title").fill("Verify Deterministic HITL Cycle");
+    await page.getByLabel("Mission title").fill(missionTitle);
     await page
       .getByLabel("Description")
       .fill("Verify Generate -> Approve against the deterministic stub provider.");
@@ -92,11 +99,11 @@ test("E1 — full HITL cycle against the deterministic stub provider (generate, 
     await page.getByLabel("Priority").selectOption("high");
     await page.getByRole("button", { name: /create mission/i }).click();
 
-    await expect(
-      page.getByRole("heading", { name: "Verify Deterministic HITL Cycle" }),
-    ).toBeVisible();
+    await expect(page.getByRole("heading", { name: missionTitle })).toBeVisible();
 
-    await page.getByRole("link", { name: /Verify Deterministic HITL Cycle/i }).click();
+    // runId is a hex string (no regex metacharacters), safe to build a
+    // RegExp from directly.
+    await page.getByRole("link", { name: new RegExp(missionTitle, "i") }).click();
 
     // --- Step 3: member submits AI draft generation request ---
     await page
@@ -142,7 +149,7 @@ test("E1 — full HITL cycle against the deterministic stub provider (generate, 
     const missionsResult = await admin
       .from("missions")
       .select("id")
-      .eq("title", "Verify Deterministic HITL Cycle")
+      .eq("title", missionTitle)
       .single();
     if (missionsResult.error || !missionsResult.data) {
       throw new Error(
