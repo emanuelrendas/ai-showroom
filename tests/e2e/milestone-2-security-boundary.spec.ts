@@ -51,9 +51,27 @@ function runSupabaseDbQueryFile(sqlFilePath: string): string {
   // execFileSync (not execSync/exec): the SQL file path is passed as a
   // literal argv entry, never interpolated into a shell string, so there is
   // no shell-quoting or injection surface here regardless of platform.
+  //
+  // npx ships as npx.cmd on Windows. Node's child_process cannot launch a
+  // .cmd file directly via execFileSync/spawnSync -- .cmd/.bat files are not
+  // executables on their own, they need cmd.exe as their interpreter, and
+  // invoking one without it throws EINVAL before the process ever starts.
+  // The two documented ways around that are shell: true, which reopens a
+  // real shell-metacharacter injection surface for any future caller of
+  // this function, or spawning cmd.exe directly and passing the .cmd file
+  // as its argument, Node's own documented pattern for this exact case.
+  // cmd.exe's /c parsing still applies to what follows, so this stays
+  // injection-safe only because every argument below is a fixed,
+  // repo-controlled literal, never externally supplied input -- the one
+  // variable, sqlFilePath, is still passed as its own argv entry rather
+  // than interpolated into a command string.
+  const isWindows = process.platform === "win32";
+
   return execFileSync(
-    process.platform === "win32" ? "npx.cmd" : "npx",
-    ["supabase", "db", "query", "--local", "--file", sqlFilePath],
+    isWindows ? "cmd.exe" : "npx",
+    isWindows
+      ? ["/c", "npx", "supabase", "db", "query", "--local", "--file", sqlFilePath]
+      : ["supabase", "db", "query", "--local", "--file", sqlFilePath],
     { cwd: REPO_ROOT, encoding: "utf-8" },
   );
 }
