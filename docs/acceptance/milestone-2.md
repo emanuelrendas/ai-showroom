@@ -2,7 +2,7 @@
 
 **Milestone:** Single-Model AI
 **Release state:** Candidate - a complete HITL cycle was verified manually with a live Gemini call against local Postgres. Automated Playwright reached draft generation in three production-build runs without reproducing the Turbopack dev-server crash, but none completed the full flow: one observed an HTTP 503 and two observed approximately 15-second timeouts. Those observations do not by themselves prove provider-only causation. The full Supabase advisor pass (Auth category) also remains open.
-**Report date:** 22 September 2026 (updated 24 September 2026 to distinguish manual success, automated attempts, observed failures, and inferred causes)
+**Report date:** 22 September 2026 (updated 24 September 2026 to distinguish manual success, automated attempts, observed failures, and inferred causes; updated 25 September 2026 — see "25 September 2026 Update" section near the end of this document. The Class-C HITL item below moved from HOLD to CONDITIONAL, ratified as Option B, pending C1-C3; C1 and C3 closed with evidence, C2 is HOLD on an environment blocker. Acceptance count is unchanged at this report date: still 9 of 12, not yet 10 of 12.)
 **Design document:** `docs/superpowers/specs/2026-09-21-ai-showroom-v1-milestone-2-design.md`
 
 Only mark an item complete when supported by manual, automated, database, or advisor evidence, per the same discipline `docs/acceptance/milestone-1.md` already established. Nine of the twelve Section 5 criteria have that evidence and canonical alignment today; three do not yet, and are left unchecked rather than asserted.
@@ -271,6 +271,26 @@ Still needed:
 - One clean automated `test:e2e` pass against the production build. Existing evidence does not establish whether the observed 503/timeouts require only an external recovery or also a client/network correction.
 - The full Supabase advisor pass (Auth/platform-level, not just schema lint — see above) against a linked project, showing no new finding introduced by either migration. Local Security + Performance advisors are now fully documented above; only the Auth-config category remains genuinely out of reach locally.
 - A decision on whether to audit Milestone 1's tables for the same default-privilege gap (see above).
+
+## 25 September 2026 Update — M2 Final Acceptance Closure Attempt
+
+**Dispatch:** close M2 acceptance from 9/12 + 1 conditional to 12/12, via Emanuel's Option B ratification (C1-C3), local advisor/Auth review, and deterministic E2E, in that mandatory order. **Result: HOLD, not 12/12.** Real progress was made and is recorded with full evidence below; the remainder is blocked by an environment limitation, not a schema, security, or architecture problem, and not silently claimed as passing.
+
+**Decision record:** `docs/evidencia/2026-09-25-m2-option-b-ratification-and-advisor-scope.md`. Emanuel ratified Option B (`public.mission_ai_drafts` as the M2 DB-level HITL boundary) as Class C, conditional on C1-C3, and approved the local-only advisor scope (hosted Platform/Auth advisor deferred to deploy milestone; hosted project `yljvselkecxdfrqwyums` stays paused/inactive throughout).
+
+| Item | Result | Evidence |
+|---|---|---|
+| C1 — write-path map to `public.missions` | **PASS** | `docs/evidencia/2026-09-25-m2-c1-missions-write-map.md`. Exactly one write path exists (human-driven Mission creation); zero writes from the AI generation/review/approval flow. |
+| C2 — security boundary test + mutation proof | **HOLD** | `docs/evidencia/2026-09-25-m2-c2-missions-mutation-proof.md`. Test plan and real credential boundary identified from C1; not executed — see blocker below. |
+| C3 — canonical Section 4.4 amendment | **PASS** | `docs/superpowers/specs/2026-09-21-ai-showroom-v1-milestone-2-design.md` (dated addendum immediately after Section 4.4, purely additive — 20 insertions, 0 deletions, verified by diff). Original 21 Sep 2026 text and provenance preserved unchanged. |
+| Block 2A — clean local replay | **HOLD** | `docs/evidencia/2026-09-25-m2-local-security-advisor.md`. |
+| Block 2B — local security advisor lint | **HOLD** | Same file as above. |
+| Block 2C — static Auth config review | **PASS** | `docs/evidencia/2026-09-25-m2-auth-config-review.md`. Every repo-controlled `supabase/config.toml` Auth setting reviewed; no M2 regression; hosted-only items explicitly `DEFERRED TO DEPLOY MILESTONE`. |
+| Block 3 — deterministic E2E (E1-E4) | **HOLD, not attempted** | Same blocker as C2/Block 2A-2B: requires the running local stack. Not started, to avoid burning effort against an environment that cannot yet produce a real result. |
+
+**The blocker (identical root cause for C2, Block 2A, Block 2B, and Block 3):** this session's Docker daemon is fully functional (`dockerd` started and verified operational), but bringing up the local Supabase stack (`npx supabase start`, and therefore `db reset --local`, `db lint --local`, the Studio advisor pages, `npm run test:rls` against a live instance, and Playwright E2E) requires pulling `supabase/postgres`, `supabase/gotrue`, `postgrest/postgrest`, `supabase/kong`, `supabase/studio`, and several more images from `docker.io` and `ghcr.io`. Both registries return HTTP 403 at this session's outbound egress proxy — a policy denial (confirmed against the proxy's own status/diagnostic endpoint), not a transient failure, and neither registry is in this session's outbound allowlist. No workaround was attempted: no egress bypass, no hand-built Postgres+RLS substitute standing in for GoTrue/PostgREST (which would itself be exactly the kind of synthetic, never-used-by-production boundary the dispatch explicitly forbids for C2), and the hosted project was not used as a substitute at any point. Full raw proxy output and the three options to close this are in `docs/evidencia/2026-09-25-m2-c2-missions-mutation-proof.md`.
+
+**Acceptance count as of this update: unchanged at 9/12 + 1 conditional.** The Block 1 exit gate (C1 + C2 + C2-mutation-proof + C3 all PASS) and the Block 2 exit gate (clean local replay + local security review + no unjustified ERROR/WARN + Auth review, all together) were not reached, because C2 and Block 2A/2B are HOLD. Per the dispatch's own rule — "Missing evidence = HOLD. Not PASS." — this document does not advance to 10/12, 11/12, or 12/12 on partial evidence. C1, C3, and Block 2C stand as genuine, committed, evidence-backed progress regardless of the blocker's resolution.
 
 ## Milestone Boundary
 
