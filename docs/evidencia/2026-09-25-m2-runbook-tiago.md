@@ -212,3 +212,42 @@ Paste raw, unedited terminal output for:
 ## 15. What happens with it
 
 Once this comes back, it gets folded into `docs/evidencia/2026-09-25-m2-c2-missions-mutation-proof.md`, `docs/evidencia/2026-09-25-m2-local-security-advisor.md`, `docs/evidencia/2026-09-25-m2-block3-command-suite.md`, and `docs/acceptance/milestone-2.md`, and a real FINAL REPORT gets issued — with real PASS/FAIL/HOLD values instead of today's HOLD placeholders, advancing the acceptance count from 9/12 + 1 conditional toward however many of C2, Block 2A/2B, and Block 3 actually come back green.
+
+## 16. 26 September 2026 addendum — F7–F10 fix commit, before your rerun
+
+Everything above this section is left exactly as written for the 25 Sep run and describes what was actually followed then. This addendum is additive only, for the new HEAD produced by the F7–F10 fix commit (test-only changes fixing two harness defects and two doc nits found by the Fable 5.1 Option 1 delta re-audit, `claude/2026-09-26-m2-f1-f2-option1-delta-reaudit.md`). Nothing in Sections 1–15 above changes: same safety boundary, same steps, same commands. Read this section before repeating Step 6 (`test:rls`) and Step 9 (`test:e2e`) on the new HEAD.
+
+### 16.1 What changed since your 25 Sep run
+
+- **`tests/e2e/milestone-2-security-boundary.spec.ts`** — the E4 mutation-proof test's layered GREEN / RED-1 / RED-2 / RESTORE+GREEN sequence (unchanged in what it proves) now also tracks the deliberately forged RED-2 row (`forgedRowId`) at outer scope for the whole test, and its `finally` block deletes that row by id, if it is still set, before attempting the restore — not only in the happy path. This closes a gap where an assertion failing between the RED-2 forge and its in-try cleanup could leave the forged row in place, which would make the restore's own `ADD CONSTRAINT` fail (see 16.3 below) — previously that failure mode was undocumented and unhandled.
+- **`scripts/c2-mutation-proof/restore-mission-ai-drafts-hitl-gate.sql`** — the header comment no longer claims the restore succeeds unconditionally "from GREEN, RED-1, or RED-2." It now states the true, narrower guarantee (see 16.3).
+- **`scripts/c2-mutation-proof/disable-mission-ai-drafts-hitl-gate.sql`** — one stale in-comment filename reference corrected (`drop-mission-ai-drafts-approval-check.sql` → `disable-mission-ai-drafts-approval-check.sql`, matching the file that was already on disk under that name).
+- **`tests/rls/mission-ai-drafts.rls.test.ts`** — the fixture gained a second project (same workspace), a second mission (under the first, fixture project), and a second workspace (the member is also a member of it, added directly by the service-role client). The three pinned-field cases that used to mutate `workspace_id` / `project_id` / `mission_id` to a bare `randomUUID()` now mutate them to these valid, existing ids instead, and all five pinned-field cases (not only those three) now assert the rejection's error message matches `/row-level security/i`. This is a stronger, more specific assertion than before — it proves the rejection is the pinned-field RLS `WITH CHECK`, not some other failure mode (e.g. a foreign-key violation on a made-up id) that also happens to produce a non-null error. Test count is unchanged: still 20 tests in this file.
+
+None of the above touches `supabase/migrations/`, `features/`, `app/`, `lib/`, or `docs/acceptance/milestone-2.md`. The HITL gate's actual behavior (trigger + CHECK, RLS policies, the `approve_mission_ai_draft` RPC) is exactly what you tested on 25 Sep — this addendum is test-harness and documentation hardening only.
+
+### 16.2 Expected counts at the new HEAD
+
+- **Step 6, `npm.cmd run test:rls`:** **39 / 39 pass** (unchanged file count of 20 in `tests/rls/mission-ai-drafts.rls.test.ts`; the total of 39 includes the other RLS spec files in the suite). If your number differs, paste the diff.
+- **Step 9, `npm.cmd run test:e2e -- tests/e2e/milestone-2-hitl-deterministic.spec.ts tests/e2e/milestone-2-security-boundary.spec.ts`:** **5 / 5 pass**, same five tests named in Section 11 (E1, E2, E3, and both E4 tests, including the mutation-proof test with its now-hardened `finally` block). No new tests were added.
+
+Both counts are what the fix commit's own verification run predicts from `typecheck`/`lint`/`npm test`/`playwright test --list` at this HEAD (a live-database rerun was out of scope for that session — this is not a claim that Steps 6 or 9 have already been run at this HEAD by anyone; that is your rerun to do, same as before).
+
+### 16.3 Manual recovery if the mutation-proof restore step itself fails
+
+Section 11's existing manual-recovery command still applies, but it can now fail for a specific, understood reason: `restore-mission-ai-drafts-hitl-gate.sql`'s `ADD CONSTRAINT` step fails if any row in `mission_ai_drafts` already has `status = 'applied'` with a null `approved_by` or `approved_at` — exactly the state the RED-2 step of the mutation-proof test deliberately forges. Because the restore file's `DO $$ ... $$` block is a single atomic statement, a failed `ADD CONSTRAINT` also rolls back the trigger recreate that precedes it in the same block — so a failure here can leave **both** protections down, not just the CHECK.
+
+If you hit this, run the following on your local stack, in order:
+
+```powershell
+npx supabase db query --local "delete from public.mission_ai_drafts where status = 'applied' and (approved_by is null or approved_at is null);"
+npx supabase db query --local --file scripts/c2-mutation-proof/restore-mission-ai-drafts-hitl-gate.sql
+npx supabase db query --local "select pg_get_triggerdef(oid) from pg_trigger where tgname = 'mission_ai_drafts_enforce_hitl_gate';"
+npx supabase db query --local "select conname from pg_constraint where conname = 'mission_ai_drafts_approval_state_check';"
+```
+
+**Verification:** the third command's output must show `BEFORE INSERT OR UPDATE` (not `BEFORE UPDATE` only — a trigger scoped to `UPDATE` only would silently reopen finding 4e), and the fourth command must return the one row naming `mission_ai_drafts_approval_state_check`. Both must pass — either one alone is not sufficient evidence the stack is back in its ratified, post-`20260926130000` state.
+
+### 16.4 Raw output location for this rerun
+
+Paste raw, unedited terminal output for this rerun the same way Section 14 describes, and also save it to `docs/evidencia/raw/<date>-tiago-rerun/` (substitute the actual date you run this, e.g. `docs/evidencia/raw/2026-09-27-tiago-rerun/`) so it has a durable location alongside the fix commit's own raw logs at `docs/evidencia/raw/2026-09-26-f7-f10-fix/`.

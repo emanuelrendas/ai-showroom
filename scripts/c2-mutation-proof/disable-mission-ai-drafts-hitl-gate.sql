@@ -23,7 +23,7 @@
 -- exception. That is the proof: TRIGGER absent + CHECK present -> forged
 -- transition REJECTED, by the CHECK alone.
 --
--- RED-2 (drop-mission-ai-drafts-approval-check.sql) is run next, on top of
+-- RED-2 (disable-mission-ai-drafts-approval-check.sql) is run next, on top of
 -- this file's effect, to remove the CHECK as well and prove the pair --
 -- not either one alone -- is what actually stands between service_role and
 -- a forged applied row. restore-mission-ai-drafts-hitl-gate.sql then

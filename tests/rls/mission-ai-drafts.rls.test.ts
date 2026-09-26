@@ -38,6 +38,19 @@ let workspaceId = "";
 let projectId = "";
 let missionId = "";
 
+// Second-tenant fixture rows, added per the 26 Sep 2026 F1/F2 fix dispatch,
+// finding F8: the pinned-field cases below need VALID, existing ids to
+// mutate onto -- a random UUID would fail on a foreign-key violation before
+// the pinned-field RLS WITH CHECK is ever reached, which proves nothing
+// about the policy these tests exist to pin. projectId2 sits in the same
+// workspace as the fixture project; missionId2 sits under the fixture
+// project itself (not project2); workspaceId2 is a second, otherwise
+// unrelated workspace that the member is also a member of, so cross-tenant
+// membership itself is never the reason the mutation is rejected.
+let projectId2 = "";
+let missionId2 = "";
+let workspaceId2 = "";
+
 let ownerClient: SupabaseClient;
 let memberClient: SupabaseClient;
 let outsiderClient: SupabaseClient;
@@ -173,17 +186,99 @@ describe("mission_ai_drafts — persistence, RLS, and Section 4.4 HITL gate", ()
     }
 
     missionId = missionResult.data.id;
+
+    // --- Second-tenant fixture rows for the pinned-field cases (finding F8) ---
+
+    const projectResult2 = await ownerClient
+      .from("projects")
+      .insert({
+        workspace_id: workspaceId,
+        name: `AI Draft Project 2 ${runId}`,
+        description: "Second temporary project for pinned-field regression coverage.",
+        created_by: ownerId,
+      })
+      .select("id")
+      .single();
+
+    if (projectResult2.error || !projectResult2.data) {
+      throw new Error(
+        `Unable to create second project: ${projectResult2.error?.message ?? "unknown error"}`,
+      );
+    }
+
+    projectId2 = projectResult2.data.id;
+
+    const missionResult2 = await ownerClient
+      .from("missions")
+      .insert({
+        project_id: projectId,
+        title: `AI Draft Mission 2 ${runId}`,
+        description: "Second temporary mission for pinned-field regression coverage.",
+        status: "todo",
+        priority: "medium",
+        created_by: ownerId,
+      })
+      .select("id")
+      .single();
+
+    if (missionResult2.error || !missionResult2.data) {
+      throw new Error(
+        `Unable to create second mission: ${missionResult2.error?.message ?? "unknown error"}`,
+      );
+    }
+
+    missionId2 = missionResult2.data.id;
+
+    const workspaceSlug2 = `ai-draft-2-${runId}`;
+
+    const workspaceResult2 = await ownerClient.rpc("create_workspace_with_owner", {
+      p_name: `AI Draft Workspace 2 ${runId}`,
+      p_slug: workspaceSlug2,
+    });
+
+    if (workspaceResult2.error || !workspaceResult2.data) {
+      throw new Error(
+        `Unable to create second workspace: ${workspaceResult2.error?.message ?? "unknown error"}`,
+      );
+    }
+
+    workspaceId2 = workspaceResult2.data as string;
+
+    // Admin inserts (not ownerClient): the member's membership in this
+    // second, otherwise-unrelated workspace is fixture setup, not part of
+    // what the pinned-field test itself exercises.
+    const memberInsert2 = await admin.from("workspace_members").insert({
+      workspace_id: workspaceId2,
+      user_id: memberId,
+      role: "member",
+    });
+
+    if (memberInsert2.error) {
+      throw new Error(
+        `Unable to add workspace member to second workspace: ${memberInsert2.error.message}`,
+      );
+    }
   });
 
   afterAll(async () => {
     // Cascade cleanup is fine here: mission_ai_drafts uses ON DELETE CASCADE
-    // (unlike inference_logs, which uses RESTRICT). Deleting the workspace
-    // is expected to succeed and take everything else with it.
+    // (unlike inference_logs, which uses RESTRICT). Deleting each workspace
+    // is expected to succeed and take everything else -- including
+    // projectId2 and missionId2, which live under the first workspace --
+    // with it.
     if (workspaceId) {
       const { error } = await ownerClient.from("workspaces").delete().eq("id", workspaceId);
 
       if (error) {
         throw new Error(`Unable to clean up temporary workspace: ${error.message}`);
+      }
+    }
+
+    if (workspaceId2) {
+      const { error } = await ownerClient.from("workspaces").delete().eq("id", workspaceId2);
+
+      if (error) {
+        throw new Error(`Unable to clean up second temporary workspace: ${error.message}`);
       }
     }
 
@@ -446,9 +541,12 @@ describe("mission_ai_drafts — persistence, RLS, and Section 4.4 HITL gate", ()
   const pinnedFieldCases: Array<[string, () => string | boolean]> = [
     ["is_ai_generated", (): boolean => false],
     ["created_by", (): string => ownerId],
-    ["workspace_id", (): string => randomUUID()],
-    ["project_id", (): string => randomUUID()],
-    ["mission_id", (): string => randomUUID()],
+    // Valid, existing cross-tenant ids (finding F8) -- not randomUUID(),
+    // which would trip a foreign-key violation before the pinned-field RLS
+    // WITH CHECK is ever reached and so would not prove this policy at all.
+    ["workspace_id", (): string => workspaceId2],
+    ["project_id", (): string => projectId2],
+    ["mission_id", (): string => missionId2],
   ];
 
   it.each(pinnedFieldCases)(
@@ -470,6 +568,10 @@ describe("mission_ai_drafts — persistence, RLS, and Section 4.4 HITL gate", ()
         .eq("id", draftId);
 
       expect(result.error).not.toBeNull();
+      // Prove the rejection actually comes from the pinned-field RLS WITH
+      // CHECK, not some other failure mode (e.g. a foreign-key violation on
+      // a made-up id) that happens to also produce a non-null error.
+      expect(result.error?.message ?? "").toMatch(/row-level security/i);
 
       // Prove the whole statement was rejected, not merely the pinned
       // column: the bundled, otherwise-legal summary edit must not have

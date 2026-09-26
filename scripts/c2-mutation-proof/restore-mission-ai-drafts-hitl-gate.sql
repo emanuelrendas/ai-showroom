@@ -32,8 +32,18 @@
 -- `drop constraint if exists` make every step here idempotent: safe to
 -- re-run by hand (see the runbook) if the automated restore itself is ever
 -- interrupted (e.g. the test process is killed mid-run) — running this file
--- alone, at any time, returns the local stack to the correct, ratified
--- state, whether it starts from GREEN, RED-1, or RED-2.
+-- alone returns the local stack to the correct, ratified state, whether it
+-- starts from GREEN, RED-1, or RED-2, PROVIDED no row with status =
+-- 'applied' and a null approval field (approved_by or approved_at) exists
+-- at the time this file runs. If one does, `ADD CONSTRAINT` fails with a
+-- violated-check error, and because the `DO $$ ... $$` block below is a
+-- single atomic statement, the trigger recreate above is rolled back too --
+-- this restore does not partially apply. Clear any such row first, e.g.:
+--   delete from public.mission_ai_drafts
+--   where status = 'applied' and (approved_by is null or approved_at is null);
+-- (the E2E test's own `finally` block does exactly this for the one row it
+-- is responsible for -- the deliberately forged RED-2 row -- before calling
+-- this file.)
 --
 -- This does not touch the hosted Supabase project (yljvselkecxdfrqwyums stays
 -- paused throughout, per the dispatch's NO HOSTED SUPABASE RESTORE

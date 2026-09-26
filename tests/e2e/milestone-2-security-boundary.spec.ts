@@ -418,6 +418,12 @@ test.describe("E4 — mission window sealed", () => {
     // expecting success.
     const fixture = await buildFixture();
     let stackMutated = false;
+    // Hoisted so the `finally` block can guarantee this row's deletion
+    // before attempting the restore, no matter where in the try block an
+    // assertion throws after it is forged. Set right after the RED-2 draft
+    // is inserted, cleared right after the in-try cleanup delete succeeds --
+    // see the 26 Sep 2026 F1/F2 fix dispatch, finding F7.
+    let forgedRowId: string | null = null;
 
     try {
       // --- GREEN (baseline): both protections active, spoofing attempt is
@@ -463,6 +469,7 @@ test.describe("E4 — mission window sealed", () => {
       runSupabaseDbQueryFile(DISABLE_CHECK_SQL);
 
       const draftIdRed2 = await insertPendingDraft(fixture);
+      forgedRowId = draftIdRed2;
       const red2Result = await admin
         .from("mission_ai_drafts")
         .update({ status: "applied" }) // still no approved_by/approved_at
@@ -491,6 +498,7 @@ test.describe("E4 — mission window sealed", () => {
       // migration's own pre-deploy check query).
       const red2Cleanup = await admin.from("mission_ai_drafts").delete().eq("id", draftIdRed2);
       expect(red2Cleanup.error).toBeNull();
+      forgedRowId = null;
 
       // --- RESTORE: recreate both protections in one deterministic pass
       // (trigger BEFORE INSERT OR UPDATE, CHECK re-added). ---
@@ -536,6 +544,37 @@ test.describe("E4 — mission window sealed", () => {
       // script is idempotent from any of GREEN, RED-1, or RED-2 state.
       // Never leave the local database in a mutated state.
       if (stackMutated) {
+        // If an assertion threw after the RED-2 row was forged but before
+        // the in-try cleanup delete ran, that row is still sitting in
+        // status='applied' with null approvals -- exactly the state
+        // mission_ai_drafts_approval_state_check forbids. Left in place,
+        // the restore file's `ADD CONSTRAINT` would fail on it, and because
+        // that file's DO block is atomic, the trigger recreate would be
+        // rolled back too, so the local stack would come out of this test
+        // with NEITHER protection restored. Delete it here, and log the
+        // outcome either way -- but a failed delete must never skip the
+        // restore attempt below; it may still succeed if the row was
+        // already cleaned up by other means, and even if it doesn't, the
+        // restore attempt itself is the more informative failure to see.
+        if (forgedRowId) {
+          const { error: forgedDeleteError } = await admin
+            .from("mission_ai_drafts")
+            .delete()
+            .eq("id", forgedRowId);
+          if (forgedDeleteError) {
+            console.error(
+              `CRITICAL: failed to delete forged row ${forgedRowId} before the ` +
+                "restore attempt. If this row (status='applied', null approvals) " +
+                "is still present, the restore's ADD CONSTRAINT will fail and " +
+                "neither protection will be recreated -- see the manual recovery " +
+                `steps in docs/evidencia/2026-09-25-m2-runbook-tiago.md. Underlying error: ${forgedDeleteError.message}`,
+            );
+          } else {
+            console.log(`Deleted forged row ${forgedRowId} before the restore attempt.`);
+          }
+          forgedRowId = null;
+        }
+
         try {
           runSupabaseDbQueryFile(RESTORE_TRIGGER_SQL);
         } catch (restoreError) {

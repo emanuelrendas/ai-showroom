@@ -1,0 +1,9 @@
+Listing tests:
+  [chromium] › milestone-1.spec.ts:19:5 › Milestone 1 browser journey
+  [chromium] › milestone-2-hitl-deterministic.spec.ts:32:5 › E1 — full HITL cycle against the deterministic stub provider (generate, approve, verify)
+  [chromium] › milestone-2-hitl.spec.ts:33:5 › Milestone 2 HITL browser journey with a real Gemini call
+  [chromium] › milestone-2-security-boundary.spec.ts:249:7 › E2 — no shortcuts › outsider cannot apply a draft via the RPC, direct spoofing UPDATE is refused, and missions cannot represent a fabricated AI-approved state
+  [chromium] › milestone-2-security-boundary.spec.ts:294:7 › E3 — tenant isolation › a user outside the workspace cannot see the Mission, mission_ai_drafts, or inference_logs, and cannot approve or mutate the draft
+  [chromium] › milestone-2-security-boundary.spec.ts:366:7 › E4 — mission window sealed › direct public.missions mutation to a non-mission status is rejected by the M1 status CHECK constraint, not by access control
+  [chromium] › milestone-2-security-boundary.spec.ts:406:7 › E4 — mission window sealed › mutation proof — mission_ai_drafts defense-in-depth (layered): GREEN baseline, RED-1 (CHECK alone), RED-2 (both gone), RESTORE + GREEN
+Total: 7 tests in 4 files
