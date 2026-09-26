@@ -355,12 +355,28 @@ test.describe("E3 — tenant isolation", () => {
 });
 
 test.describe("E4 — mission window sealed", () => {
-  test("direct public.missions mutation from the real reachable AI/server boundary is refused", async () => {
+  test("direct public.missions mutation to a non-mission status is rejected by the M1 status CHECK constraint, not by access control", async () => {
     const fixture = await buildFixture();
     try {
       // Same client construction as lib/supabase/server.ts (publishable key,
       // real signed-in session) -- the exact boundary C1 identified as the
       // only one the M2 AI generation flow ever uses. No invented role.
+      //
+      // What this actually proves, corrected 26 Sep 2026 per the independent
+      // pre-merge audit (claude/2026-09-26-m2-pre-merge-audit.md, Section 4,
+      // finding 4/"the test's label overclaims"): "applied" is not a valid
+      // `missions.status` value under M1's `missions_status_check` CHECK
+      // constraint ('todo', 'in_progress', 'blocked', 'done', 'cancelled'),
+      // so the rejection below comes from that CHECK, not from RLS/access
+      // control -- `missions_update_member` still lets any workspace member
+      // update a mission to any valid status, which is M1 behaviour and is
+      // unchanged and untouched by M2. The guarantee this test's name used to
+      // claim -- that the AI flow cannot reach an "applied" mission state --
+      // is actually carried by C1 (docs/evidencia/2026-09-25-m2-c1-missions-write-map.md):
+      // the AI/server code path never calls this update at all. This test
+      // still documents real, useful behaviour (a member cannot force a
+      // mission into a status the schema does not define), it just is not
+      // the HITL/access-control boundary its old name implied.
       const attempt = await fixture.memberClient
         .from("missions")
         .update({ status: "applied" })
