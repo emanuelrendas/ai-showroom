@@ -14,10 +14,12 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 // E2-E4 runnable in the same `npx playwright test` invocation as E1.
 //
 // This file also carries the C2 mutation proof (see
-// docs/evidencia/2026-09-25-m2-c2-missions-mutation-proof.md): the RED/GREEN
-// sequence against the mission_ai_drafts HITL trigger is the same boundary
-// C2 requires, so running this file once satisfies both C2's mutation proof
-// and Block 3's E2E mutation proof requirement.
+// docs/evidencia/2026-09-25-m2-c2-missions-mutation-proof.md): the layered
+// GREEN / RED-1 / RED-2 / RESTORE+GREEN sequence against the
+// mission_ai_drafts defense-in-depth boundary (trigger + table-level CHECK,
+// since migration 20260926130000) is the same boundary C2 requires, so
+// running this file once satisfies both C2's mutation proof and Block 3's
+// E2E mutation proof requirement.
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
@@ -39,6 +41,12 @@ const DISABLE_TRIGGER_SQL = path.join(
   "scripts",
   "c2-mutation-proof",
   "disable-mission-ai-drafts-hitl-gate.sql",
+);
+const DISABLE_CHECK_SQL = path.join(
+  REPO_ROOT,
+  "scripts",
+  "c2-mutation-proof",
+  "disable-mission-ai-drafts-approval-check.sql",
 );
 const RESTORE_TRIGGER_SQL = path.join(
   REPO_ROOT,
@@ -395,12 +403,26 @@ test.describe("E4 — mission window sealed", () => {
     }
   });
 
-  test("mutation proof — mission_ai_drafts HITL trigger: GREEN baseline, RED with the trigger disabled, GREEN after restoration", async () => {
+  test("mutation proof — mission_ai_drafts defense-in-depth (layered): GREEN baseline, RED-1 (CHECK alone), RED-2 (both gone), RESTORE + GREEN", async () => {
+    // Layered design per Emanuel's selected Option 1 (see the 26 Sep 2026
+    // Option B delta re-audit, claude/2026-09-26-m2-option-b-delta-reaudit.md,
+    // finding F1, and docs/evidencia/2026-09-25-m2-c2-missions-mutation-proof.md,
+    // "25 Sep -> 26 Sep addendum"). After migration 20260926130000, the
+    // boundary against a forged 'applied' transition from a privileged
+    // (service-role) writer is defense-in-depth, not a single mechanism:
+    // the BEFORE INSERT OR UPDATE trigger, and the table-level CHECK
+    // constraint, each independently reject the forged transition. The old
+    // single-layer RED/GREEN proof is no longer reachable as written (the
+    // CHECK now catches what the trigger used to catch alone), so this test
+    // isolates each layer in turn instead of disabling only one and
+    // expecting success.
     const fixture = await buildFixture();
-    let triggerDisabled = false;
+    let stackMutated = false;
 
     try {
-      // --- GREEN (baseline): protection active, spoofing attempt is rejected ---
+      // --- GREEN (baseline): both protections active, spoofing attempt is
+      // rejected by the trigger (it fires BEFORE the row is written, so the
+      // CHECK is never reached here). ---
       const draftIdGreenBaseline = await insertPendingDraft(fixture);
       const greenBaseline = await admin
         .from("mission_ai_drafts")
@@ -409,35 +431,75 @@ test.describe("E4 — mission window sealed", () => {
       expect(greenBaseline.error).not.toBeNull();
       expect(greenBaseline.error?.message ?? "").toMatch(/approved_by and approved_at/i);
 
-      // --- RED: disable ONLY the trigger under test, on the local/disposable
-      // database, and prove the same spoofing attempt now SUCCEEDS where it
-      // should have failed -- proving the trigger, not RLS, is what the
-      // baseline actually detected (the service-role admin client bypasses
-      // RLS entirely by construction, so RLS was never in play here). ---
+      // --- RED-1: drop ONLY the trigger, on the local/disposable database.
+      // The same forged transition must STILL be rejected, but now
+      // specifically by mission_ai_drafts_approval_state_check, proving the
+      // CHECK is independently load-bearing -- not merely present alongside
+      // the trigger, but itself sufficient on its own. ---
       runSupabaseDbQueryFile(DISABLE_TRIGGER_SQL);
-      triggerDisabled = true;
+      stackMutated = true;
 
-      const draftIdRed = await insertPendingDraft(fixture);
-      const redResult = await admin
+      const draftIdRed1 = await insertPendingDraft(fixture);
+      const red1Result = await admin
         .from("mission_ai_drafts")
         .update({ status: "applied" }) // still no approved_by/approved_at
-        .eq("id", draftIdRed);
-      expect(redResult.error).toBeNull(); // RED: this must succeed without the trigger
+        .eq("id", draftIdRed1);
+      expect(red1Result.error).not.toBeNull(); // RED-1: still rejected...
+      expect(red1Result.error?.message ?? "").toMatch(/approval_state_check/i); // ...by the CHECK
 
-      const redReadBack = await admin
+      const red1ReadBack = await admin
+        .from("mission_ai_drafts")
+        .select("status")
+        .eq("id", draftIdRed1)
+        .single();
+      expect(red1ReadBack.data?.status).toBe("pending_review"); // write never landed
+
+      // --- RED-2: also drop the CHECK, on top of RED-1's already-dropped
+      // trigger. With BOTH protections gone, the same forged transition
+      // must now SUCCEED, proving the trigger and the CHECK -- not RLS
+      // (bypassed by service_role by construction, so RLS was never in play
+      // in this test), not app code, not coincidence -- are exactly what
+      // stood between service_role and a forged 'applied' row. ---
+      runSupabaseDbQueryFile(DISABLE_CHECK_SQL);
+
+      const draftIdRed2 = await insertPendingDraft(fixture);
+      const red2Result = await admin
+        .from("mission_ai_drafts")
+        .update({ status: "applied" }) // still no approved_by/approved_at
+        .eq("id", draftIdRed2);
+      expect(red2Result.error).toBeNull(); // RED-2: this must now succeed
+
+      const red2ReadBack = await admin
         .from("mission_ai_drafts")
         .select("status, approved_by, approved_at")
-        .eq("id", draftIdRed)
+        .eq("id", draftIdRed2)
         .single();
-      expect(redReadBack.data?.status).toBe("applied");
-      expect(redReadBack.data?.approved_by).toBeNull();
-      expect(redReadBack.data?.approved_at).toBeNull();
+      expect(red2ReadBack.data?.status).toBe("applied");
+      expect(red2ReadBack.data?.approved_by).toBeNull();
+      expect(red2ReadBack.data?.approved_at).toBeNull();
 
-      // --- RESTORE ---
+      // RESTORE (below) re-adds mission_ai_drafts_approval_state_check,
+      // which validates every existing row by default -- and this row was
+      // just deliberately forged into exactly the state that CHECK forbids
+      // (status='applied' with null approvals), by design, to prove RED-2.
+      // Left in place, ADD CONSTRAINT would fail with "check constraint ...
+      // is violated by some row" and the restoration itself would never
+      // complete. Delete this disposable fixture row (workspace teardown
+      // would remove it anyway) before restoring, exactly as a real
+      // deploy runbook must also sweep any row an old, unpatched trigger
+      // let through before applying this migration (see finding F5, this
+      // migration's own pre-deploy check query).
+      const red2Cleanup = await admin.from("mission_ai_drafts").delete().eq("id", draftIdRed2);
+      expect(red2Cleanup.error).toBeNull();
+
+      // --- RESTORE: recreate both protections in one deterministic pass
+      // (trigger BEFORE INSERT OR UPDATE, CHECK re-added). ---
       runSupabaseDbQueryFile(RESTORE_TRIGGER_SQL);
-      triggerDisabled = false;
+      stackMutated = false;
 
-      // --- GREEN (after restoration): the same spoofing attempt is rejected again ---
+      // --- GREEN (after restoration), via UPDATE: the same spoofing
+      // attempt is rejected again, by the trigger, exactly as the original
+      // baseline. ---
       const draftIdGreenRestored = await insertPendingDraft(fixture);
       const greenRestored = await admin
         .from("mission_ai_drafts")
@@ -445,18 +507,43 @@ test.describe("E4 — mission window sealed", () => {
         .eq("id", draftIdGreenRestored);
       expect(greenRestored.error).not.toBeNull();
       expect(greenRestored.error?.message ?? "").toMatch(/approved_by and approved_at/i);
+
+      // --- GREEN (after restoration), via INSERT: proves the restored
+      // trigger is bound BEFORE INSERT OR UPDATE, not BEFORE UPDATE only --
+      // a direct INSERT landing straight on 'applied' with null approval
+      // fields must be rejected too, the same way the pre-20260926130000
+      // trigger left this path completely open (finding 4e). ---
+      const insertSpoof = await admin
+        .from("mission_ai_drafts")
+        .insert({
+          mission_id: fixture.missionId,
+          project_id: fixture.projectId,
+          workspace_id: fixture.workspaceId,
+          schema_version: "1.0.0",
+          summary: "RESTORE INSERT-path spoof attempt.",
+          suggested_actions: ["Should never be reachable."],
+          confidence_score: 0.5,
+          confidence_tier: "LOW",
+          created_by: fixture.memberId,
+          status: "applied", // forged directly at INSERT time, no approvals
+        });
+      expect(insertSpoof.error).not.toBeNull();
+      expect(insertSpoof.error?.message ?? "").toMatch(/approved_by and approved_at/i);
     } finally {
-      // Fail-safe: if any assertion above threw while the trigger was
-      // disabled, restore it before this test process exits, regardless of
-      // what happened. Never leave the local database in the mutated state.
-      if (triggerDisabled) {
+      // Fail-safe: if any assertion above threw while the trigger and/or
+      // CHECK were disabled, restore both before this test process exits,
+      // regardless of what happened or how far RED-1/RED-2 got. The restore
+      // script is idempotent from any of GREEN, RED-1, or RED-2 state.
+      // Never leave the local database in a mutated state.
+      if (stackMutated) {
         try {
           runSupabaseDbQueryFile(RESTORE_TRIGGER_SQL);
         } catch (restoreError) {
           console.error(
             "CRITICAL: failed to restore mission_ai_drafts_enforce_hitl_gate " +
-              "after a failed mutation-proof run. Restore it manually before " +
-              "doing anything else: npx supabase db query --local --file " +
+              "and/or mission_ai_drafts_approval_state_check after a failed " +
+              "mutation-proof run. Restore manually before doing anything " +
+              "else: npx supabase db query --local --file " +
               `${RESTORE_TRIGGER_SQL}. Underlying error: ${restoreError}`,
           );
           throw restoreError;

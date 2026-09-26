@@ -1,14 +1,33 @@
--- C2 / Block 3 mutation proof — RED step.
+-- C2 / Block 3 mutation proof — RED-1 step.
 --
--- Purpose: this script exists ONLY to be run once, transiently, inside the
--- E4 mutation-proof test in tests/e2e/milestone-2-security-boundary.spec.ts
--- (see docs/evidencia/2026-09-25-m2-c2-missions-mutation-proof.md, "required
--- mutation proof"). It proves the DB-level HITL enforcement trigger is the
--- thing actually stopping the unauthorized transition — not RLS, not app
--- code, not a coincidence — by removing it, showing the previously-blocked
--- mutation now succeeds (or at least is no longer blocked BY THIS
--- mechanism), and then immediately restoring it via
--- restore-mission-ai-drafts-hitl-gate.sql in the same test's finally block.
+-- Purpose: isolate the table-level CHECK constraint
+-- (mission_ai_drafts_approval_state_check, added by migration
+-- 20260926130000_harden_mission_ai_drafts_hitl_gate.sql) and prove it is
+-- INDEPENDENTLY load-bearing -- not merely present alongside the trigger,
+-- but itself sufficient to reject a forged `applied` transition even when
+-- the trigger is completely gone.
+--
+-- This is RED-1 of the three-step layered mutation proof required by the
+-- 26 Sep 2026 Option B delta re-audit (claude/2026-09-26-m2-option-b-delta-
+-- reaudit.md, finding F1) and Emanuel's selected Option 1 (layered proof).
+-- Run once, transiently, inside the E4 mutation-proof test in
+-- tests/e2e/milestone-2-security-boundary.spec.ts (see
+-- docs/evidencia/2026-09-25-m2-c2-missions-mutation-proof.md, "25 Sep 2026 ->
+-- 26 Sep 2026 addendum" section, for the full layered design).
+--
+-- This drops ONLY the trigger. The table-level CHECK constraint is left
+-- fully in place. RED-1 then attempts the same forged status='applied'
+-- transition (service-role, null approval fields) that GREEN rejected, and
+-- asserts it is STILL rejected, this time specifically by
+-- mission_ai_drafts_approval_state_check rather than by the trigger's raise
+-- exception. That is the proof: TRIGGER absent + CHECK present -> forged
+-- transition REJECTED, by the CHECK alone.
+--
+-- RED-2 (drop-mission-ai-drafts-approval-check.sql) is run next, on top of
+-- this file's effect, to remove the CHECK as well and prove the pair --
+-- not either one alone -- is what actually stands between service_role and
+-- a forged applied row. restore-mission-ai-drafts-hitl-gate.sql then
+-- recreates both protections in one deterministic, idempotent pass.
 --
 -- This does not touch the hosted Supabase project (yljvselkecxdfrqwyums stays
 -- paused throughout, per the dispatch's NO HOSTED SUPABASE RESTORE
@@ -16,9 +35,10 @@
 -- `npx supabase start`, via `supabase db query --local --file <this file>`.
 --
 -- Exact inverse of the trigger creation in
--- supabase/migrations/20260922140000_create_mission_ai_drafts.sql (lines
--- 83-85). Nothing else in that migration is touched: the function itself
--- (private.enforce_mission_ai_draft_hitl_gate) is left in place, only the
--- trigger binding it to public.mission_ai_drafts is removed.
+-- supabase/migrations/20260926130000_harden_mission_ai_drafts_hitl_gate.sql
+-- (part (b), lines 70-77). Nothing else is touched: the function itself
+-- (private.enforce_mission_ai_draft_hitl_gate) and the CHECK constraint are
+-- left in place, only the trigger binding the function to
+-- public.mission_ai_drafts is removed.
 
 drop trigger if exists mission_ai_drafts_enforce_hitl_gate on public.mission_ai_drafts;

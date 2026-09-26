@@ -1,0 +1,69 @@
+$ npx playwright test --list
+Sat Sep 26 09:47:53 UTC 2026
+
+Error: Missing E2E Supabase environment variables.
+
+   at milestone-1.spec.ts:9
+
+   7 |
+   8 | if (!supabaseUrl || !secretKey) {
+>  9 |   throw new Error("Missing E2E Supabase environment variables.");
+     |         ^
+  10 | }
+  11 |
+  12 | const admin = createClient(supabaseUrl, secretKey, {
+    at Object.<anonymous> (/home/claude/ai-showroom/tests/e2e/milestone-1.spec.ts:9:9)
+
+Error: Missing E2E Supabase environment variables.
+
+   at milestone-2-hitl-deterministic.spec.ts:25
+
+  23 |
+  24 | if (!supabaseUrl || !publishableKey || !secretKey) {
+> 25 |   throw new Error("Missing E2E Supabase environment variables.");
+     |         ^
+  26 | }
+  27 |
+  28 | const admin = createClient(supabaseUrl, secretKey, {
+    at Object.<anonymous> (/home/claude/ai-showroom/tests/e2e/milestone-2-hitl-deterministic.spec.ts:25:9)
+
+Error: Missing E2E Supabase environment variables.
+
+   at milestone-2-hitl.spec.ts:14
+
+  12 |
+  13 | if (!supabaseUrl || !secretKey) {
+> 14 |   throw new Error("Missing E2E Supabase environment variables.");
+     |         ^
+  15 | }
+  16 |
+  17 | const admin = createClient(supabaseUrl, secretKey, {
+    at Object.<anonymous> (/home/claude/ai-showroom/tests/e2e/milestone-2-hitl.spec.ts:14:9)
+
+Error: Missing E2E Supabase environment variables.
+
+   at milestone-2-security-boundary.spec.ts:29
+
+  27 |
+  28 | if (!supabaseUrl || !publishableKey || !secretKey) {
+> 29 |   throw new Error("Missing E2E Supabase environment variables.");
+     |         ^
+  30 | }
+  31 |
+  32 | const clientOptions = {
+    at Object.<anonymous> (/home/claude/ai-showroom/tests/e2e/milestone-2-security-boundary.spec.ts:29:9)
+
+Error: No tests found
+Listing tests:
+Total: 0 tests in 0 files
+EXIT: 1
+
+$ npm run test:e2e
+
+> ai-showroom@0.1.0 test:e2e
+> node --env-file=.env.test.local ./node_modules/@playwright/test/cli.js test
+
+[WebServer] /bin/sh: 1: npm.cmd: not found
+Error: Process from config.webServer was not able to start. Exit code: 127
+
+EXIT: 1

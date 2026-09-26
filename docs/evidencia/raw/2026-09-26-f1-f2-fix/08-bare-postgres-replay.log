@@ -1,0 +1,74 @@
+$ psql (bare Postgres 16.13, native, supplementary replay -- NOT the official test:rls/test:e2e gate) -- RE-RUN after fixing the RED-2 cleanup-before-RESTORE bug this replay caught
+Sat Sep 26 09:50:09 UTC 2026
+psql:/tmp/replay/replay-setup.sql:11: NOTICE:  drop cascades to table f1_replay.mission_ai_drafts
+DROP SCHEMA
+CREATE SCHEMA
+SET
+psql:/tmp/replay/replay-setup.sql:15: NOTICE:  schema "private" already exists, skipping
+CREATE SCHEMA
+CREATE FUNCTION
+CREATE TABLE
+CREATE TRIGGER
+ALTER TABLE
+--- SETUP COMPLETE: GREEN baseline schema created ---
+
+SET
+=== GREEN baseline: forged UPDATE to applied, no approvals ===
+INSERT 0 1
+psql:/tmp/replay/replay-driver.sql:7: ERROR:  mission_ai_drafts: status "applied" requires a valid approved_by and approved_at
+CONTEXT:  PL/pgSQL function private.enforce_mission_ai_draft_hitl_gate() line 5 at RAISE
+=== RED-1: drop ONLY the trigger (verbatim from disable-mission-ai-drafts-hitl-gate.sql, retargeted) ===
+DROP TRIGGER
+--- RED-1 attempt: forged UPDATE to applied on a fresh pending row, no approvals (expect CHECK violation) ---
+INSERT 0 1
+psql:/tmp/replay/replay-driver.sql:15: ERROR:  new row for relation "mission_ai_drafts" violates check constraint "mission_ai_drafts_approval_state_check"
+DETAIL:  Failing row contains (178c9530-cb2b-4ff8-bbfc-380d636018b3, applied, null, null, t).
+=== RED-2: also drop the CHECK (verbatim from disable-mission-ai-drafts-approval-check.sql, retargeted) ===
+ALTER TABLE
+--- RED-2 attempt: forged UPDATE to applied on a fresh pending row, no approvals (expect SUCCESS) ---
+INSERT 0 1
+                  id                  | status  | approved_by | approved_at 
+--------------------------------------+---------+-------------+-------------
+ 178c9530-cb2b-4ff8-bbfc-380d636018b3 | applied |             | 
+(1 row)
+
+UPDATE 1
+--- cleanup before RESTORE: delete the RED-2 forged row so ADD CONSTRAINT (which validates existing rows) does not fail (bug found by this replay, fixed in the real E2E spec too) ---
+DELETE 1
+=== RESTORE: single DO block, verbatim from restore-mission-ai-drafts-hitl-gate.sql, retargeted ===
+psql:/tmp/replay/replay-driver.sql:47: NOTICE:  trigger "mission_ai_drafts_enforce_hitl_gate" for relation "f1_replay.mission_ai_drafts" does not exist, skipping
+psql:/tmp/replay/replay-driver.sql:47: NOTICE:  constraint "mission_ai_drafts_approval_state_check" of relation "mission_ai_drafts" does not exist, skipping
+DO
+=== CATALOG CHECK 1: trigger definition after RESTORE (must be BEFORE INSERT OR UPDATE) ===
+                                                                                  pg_get_triggerdef                                                                                   
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ CREATE TRIGGER mission_ai_drafts_enforce_hitl_gate BEFORE INSERT OR UPDATE ON f1_replay.mission_ai_drafts FOR EACH ROW EXECUTE FUNCTION private.enforce_mission_ai_draft_hitl_gate()
+(1 row)
+
+=== CATALOG CHECK 2: CHECK constraint exists after RESTORE ===
+                conname                 |                                        pg_get_constraintdef                                        
+----------------------------------------+----------------------------------------------------------------------------------------------------
+ mission_ai_drafts_approval_state_check | CHECK (((status <> 'applied'::text) OR ((approved_by IS NOT NULL) AND (approved_at IS NOT NULL))))
+(1 row)
+
+=== GREEN reasserted, via UPDATE: forged UPDATE to applied on a fresh pending row, no approvals (expect trigger rejection) ===
+INSERT 0 1
+psql:/tmp/replay/replay-driver.sql:62: ERROR:  mission_ai_drafts: status "applied" requires a valid approved_by and approved_at
+CONTEXT:  PL/pgSQL function private.enforce_mission_ai_draft_hitl_gate() line 5 at RAISE
+=== GREEN reasserted, via INSERT: forged INSERT straight at applied, no approvals (expect trigger rejection -- proves BEFORE INSERT coverage) ===
+psql:/tmp/replay/replay-driver.sql:65: ERROR:  mission_ai_drafts: status "applied" requires a valid approved_by and approved_at
+CONTEXT:  PL/pgSQL function private.enforce_mission_ai_draft_hitl_gate() line 5 at RAISE
+=== BONUS regression check: UPDATE to applied while flipping is_ai_generated=false, no approvals (finding 4f, expect rejection) ===
+INSERT 0 1
+psql:/tmp/replay/replay-driver.sql:70: ERROR:  mission_ai_drafts: status "applied" requires a valid approved_by and approved_at
+CONTEXT:  PL/pgSQL function private.enforce_mission_ai_draft_hitl_gate() line 5 at RAISE
+=== BONUS regression check: legitimate applied transition WITH both approvals (expect SUCCESS) ===
+INSERT 0 1
+                  id                  | status  | has_approver | has_timestamp 
+--------------------------------------+---------+--------------+---------------
+ 446efcb1-8342-4084-8052-355e983e0261 | applied | t            | t
+(1 row)
+
+UPDATE 1
+=== REPLAY COMPLETE ===
+EXIT: 0

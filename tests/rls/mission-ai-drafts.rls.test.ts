@@ -368,4 +368,119 @@ describe("mission_ai_drafts — persistence, RLS, and Section 4.4 HITL gate", ()
 
     expect(readBack.data?.status).toBe("applied");
   });
+
+  // --- Permanent regression coverage for findings 4e, 4f and the pinned-
+  // field tightening, added per the 26 Sep 2026 Option B delta re-audit
+  // (claude/2026-09-26-m2-option-b-delta-reaudit.md, finding F3) and
+  // migration 20260926130000_harden_mission_ai_drafts_hitl_gate.sql. These
+  // pin the exact defects that migration closed so a future change cannot
+  // silently reopen them. ---
+
+  it("rejects a direct service-role INSERT landing straight on 'applied' with missing approvals (finding 4e)", async () => {
+    // Before 20260926130000 the HITL trigger was BEFORE UPDATE only, so an
+    // INSERT that spoofed status='applied' from the outset was never
+    // checked at all. The trigger is now BEFORE INSERT OR UPDATE.
+    const result = await admin
+      .from("mission_ai_drafts")
+      .insert({
+        ...validDraftPayload(),
+        status: "applied", // forged directly at INSERT time, no approvals
+      })
+      .select("id")
+      .single();
+
+    expect(result.error).not.toBeNull();
+    expect(result.error?.message ?? "").toMatch(/approved_by and approved_at/i);
+  });
+
+  it("rejects a direct service-role UPDATE to 'applied' that also flips is_ai_generated=false (finding 4f)", async () => {
+    // Before 20260926130000 the gate condition was
+    // `new.status = 'applied' and new.is_ai_generated`, so flipping
+    // is_ai_generated to false in the same statement that forged
+    // status='applied' escaped the gate entirely. The gate function no
+    // longer keys off is_ai_generated at all: any row landing on 'applied'
+    // must carry both approval fields, full stop.
+    const draftId = await insertPendingDraft();
+
+    const result = await admin
+      .from("mission_ai_drafts")
+      .update({ status: "applied", is_ai_generated: false }) // still no approved_by/approved_at
+      .eq("id", draftId);
+
+    expect(result.error).not.toBeNull();
+    expect(result.error?.message ?? "").toMatch(/approved_by and approved_at/i);
+
+    const readBack = await admin
+      .from("mission_ai_drafts")
+      .select("status, is_ai_generated")
+      .eq("id", draftId)
+      .single();
+
+    expect(readBack.data?.status).toBe("pending_review");
+    expect(readBack.data?.is_ai_generated).toBe(true);
+  });
+
+  it("allows an ordinary member content edit while pending_review, leaving every pinned field unchanged", async () => {
+    // Positive control paired with the pinned-field rejections below: an
+    // otherwise-permitted edit (still pending_review, no pinned field
+    // touched) must keep working exactly as before 20260926130000.
+    const draftId = await insertPendingDraft();
+
+    const result = await memberClient
+      .from("mission_ai_drafts")
+      .update({ summary: "Edited by the member while still pending review." })
+      .eq("id", draftId);
+
+    expect(result.error).toBeNull();
+
+    const readBack = await memberClient
+      .from("mission_ai_drafts")
+      .select("summary, status")
+      .eq("id", draftId)
+      .single();
+
+    expect(readBack.data?.summary).toBe("Edited by the member while still pending review.");
+    expect(readBack.data?.status).toBe("pending_review");
+  });
+
+  const pinnedFieldCases: Array<[string, () => string | boolean]> = [
+    ["is_ai_generated", (): boolean => false],
+    ["created_by", (): string => ownerId],
+    ["workspace_id", (): string => randomUUID()],
+    ["project_id", (): string => randomUUID()],
+    ["mission_id", (): string => randomUUID()],
+  ];
+
+  it.each(pinnedFieldCases)(
+    "rejects an authenticated member attempt to mutate the pinned field %s in an otherwise-permitted edit",
+    async (fieldName, newValue) => {
+      // migration 20260926130000, part (d): mission_ai_drafts_update_member's
+      // WITH CHECK now pins is_ai_generated, created_by, workspace_id,
+      // project_id, and mission_id to their pre-update value via correlated
+      // subselects, so a member cannot launder any of them through an
+      // otherwise-permitted content edit.
+      const draftId = await insertPendingDraft();
+
+      const result = await memberClient
+        .from("mission_ai_drafts")
+        .update({
+          summary: "Bundled with a pinned-field mutation attempt.",
+          [fieldName]: newValue(),
+        })
+        .eq("id", draftId);
+
+      expect(result.error).not.toBeNull();
+
+      // Prove the whole statement was rejected, not merely the pinned
+      // column: the bundled, otherwise-legal summary edit must not have
+      // landed either.
+      const readBack = await memberClient
+        .from("mission_ai_drafts")
+        .select("summary")
+        .eq("id", draftId)
+        .single();
+
+      expect(readBack.data?.summary).toBe(validDraftPayload().summary);
+    },
+  );
 });

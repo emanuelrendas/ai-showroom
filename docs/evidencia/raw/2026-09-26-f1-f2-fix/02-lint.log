@@ -1,0 +1,18 @@
+$ npm run lint
+Sat Sep 26 09:37:20 UTC 2026
+
+> ai-showroom@0.1.0 lint
+> eslint
+
+
+/home/claude/ai-showroom/tests/unit/obsidian-sync-canary-runner.test.ts
+  167:5   warning  '_repoPath' is defined but never used  @typescript-eslint/no-unused-vars
+  168:5   warning  '_branch' is defined but never used    @typescript-eslint/no-unused-vars
+  179:5   warning  '_repoPath' is defined but never used  @typescript-eslint/no-unused-vars
+  180:5   warning  '_branch' is defined but never used    @typescript-eslint/no-unused-vars
+  864:13  warning  '_repoPath' is defined but never used  @typescript-eslint/no-unused-vars
+  865:13  warning  '_branch' is defined but never used    @typescript-eslint/no-unused-vars
+
+✖ 6 problems (0 errors, 6 warnings)
+
+EXIT: 0

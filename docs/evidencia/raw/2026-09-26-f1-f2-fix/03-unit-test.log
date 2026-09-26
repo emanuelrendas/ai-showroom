@@ -1,0 +1,16 @@
+$ npm test
+Sat Sep 26 09:37:31 UTC 2026
+
+> ai-showroom@0.1.0 test
+> vitest run
+
+
+ RUN  v4.1.11 /home/claude/ai-showroom
+
+
+ Test Files  32 passed (32)
+      Tests  308 passed (308)
+   Start at  13:37:31
+   Duration  7.36s (transform 887ms, setup 0ms, import 1.76s, tests 1.12s, environment 3ms)
+
+EXIT: 0
