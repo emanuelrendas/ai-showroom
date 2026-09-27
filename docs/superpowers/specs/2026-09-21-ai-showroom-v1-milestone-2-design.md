@@ -145,6 +145,26 @@ Amended per Tiago's adversarial review, ratified by Emanuel Rendas 21 Sep 2026. 
 
 ---
 
+### 4.4 — ADDENDUM, dated 25 September 2026 (Emanuel Rendas), supersedes placement for M2 only
+
+**This addendum does not rewrite the text above.** The three numbered points above are preserved exactly as ratified by Emanuel Rendas on 21 September 2026 and remain the historical record of the original canonical design. This addendum records a later, explicit decision that changes where that design's binding requirement is implemented for Milestone 2, without altering the historical text or its provenance.
+
+**Original canonical design (21 Sep 2026, preserved above, unchanged):** the load-bearing HITL boundary is a Postgres `BEFORE UPDATE` trigger placed directly on "the missions/tasks table" (point 2 above), guarding `is_ai_generated = true` rows against reaching `applied`/`completed` without `approved_by`/`approved_at`.
+
+**25 September 2026 decision (Emanuel Rendas, Class C, full record in `docs/evidencia/2026-09-25-m2-option-b-ratification-and-advisor-scope.md`):** **Option B supersedes that placement for Milestone 2.** The canonical M2 implementation boundary is **`public.mission_ai_drafts`**, not `public.missions`. This decision was made after the Option A/Option B trade-off analysis in `docs/evidencia/2026-09-24-m2-canonical-conformance-decisions.md` (Class C HOLD, Tiago-facilitated) established that:
+
+- `public.mission_ai_drafts` (`supabase/migrations/20260922140000_create_mission_ai_drafts.sql`) already implements the same binding guarantee the original design requires — a `BEFORE UPDATE` trigger (`private.enforce_mission_ai_draft_hitl_gate()`) that rejects any row reaching `status = 'applied'` without both a valid `approved_by` and `approved_at`, immune to application-layer bypass exactly as point 3 above requires, and a `SECURITY DEFINER` RPC (`approve_mission_ai_draft(uuid)`) as the sole human-approval transition path.
+- `public.missions` remains completely unchanged by the M2 AI draft architecture: no `is_ai_generated`, `approved_by`, or `approved_at` columns are added to it; its Milestone-1 FROZEN schema and `todo | in_progress | blocked | done | cancelled` status vocabulary are untouched.
+- Structured AI output is kept fully separate from Mission records: a model-generated draft lives and is reviewed entirely inside `mission_ai_drafts`, and nothing about it is written into `public.missions` at any stage, whether pending, approved, or dismissed.
+- `docs/evidencia/2026-09-25-m2-c1-missions-write-map.md` (C1) independently confirms, by exhaustive code search rather than assertion, that the M2 AI generation/review/approval call chain issues zero write calls of any kind against `public.missions`, and that the single existing write path to that table (Mission creation) is human-driven and entirely outside the AI flow.
+- `docs/evidencia/2026-09-25-m2-c2-missions-mutation-proof.md` (C2) is the security-boundary proof for this decision, tested against the real reachable AI/server credential boundary identified by C1 (the `authenticated` Postgres role via the session-bound Supabase client), not a synthetic or invented role.
+
+**Effect:** for Milestone 2, wherever this document's Section 5 acceptance criteria or Section 4.4 body refer to "the Postgres `BEFORE UPDATE` trigger" as the enforcement mechanism, that trigger is understood to be the one on `public.mission_ai_drafts`, not on `public.missions`, per this addendum. This addendum changes only the *placement* of the binding requirement; it does not weaken, relax, or remove any part of the original three-point guarantee, and it does not authorize any other deviation from this document.
+
+**Reference:** pre-implementation base `f4cb79e352a3af24be98c7cbdebe9eee566ff9cb`; decision-record commit `f34bd78` (`docs(m2): record Emanuel Option B and advisor scope decisions`).
+
+---
+
 ## 5. Acceptance Criteria and Gates
 
 Following the evidence discipline already ratified in `docs/acceptance/milestone-1.md`. An item is checked only with manual, automated, database, or advisor evidence attached, never by assertion.

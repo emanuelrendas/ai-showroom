@@ -1,0 +1,588 @@
+import { randomUUID } from "node:crypto";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+const secretKey = process.env.SUPABASE_SECRET_KEY;
+
+if (!supabaseUrl || !publishableKey || !secretKey) {
+  throw new Error("Missing required Supabase RLS test environment variables.");
+}
+
+const clientOptions = {
+  auth: {
+    autoRefreshToken: false,
+    persistSession: false,
+    detectSessionInUrl: false,
+  },
+};
+
+// Service-role client: bypasses RLS entirely. Used to prove the append-only
+// HITL gate is a real database boundary (the BEFORE UPDATE trigger), not
+// merely an RLS restriction an elevated caller could route around.
+const admin = createClient(supabaseUrl, secretKey, clientOptions);
+
+const runId = randomUUID().replaceAll("-", "");
+const password = `Test!${randomUUID()}Aa1`;
+
+const ownerEmail = `ai-draft-owner-${runId}@example.com`;
+const memberEmail = `ai-draft-member-${runId}@example.com`;
+const outsiderEmail = `ai-draft-outsider-${runId}@example.com`;
+
+let ownerId = "";
+let memberId = "";
+let outsiderId = "";
+
+let workspaceId = "";
+let projectId = "";
+let missionId = "";
+
+// Second-tenant fixture rows, added per the 26 Sep 2026 F1/F2 fix dispatch,
+// finding F8: the pinned-field cases below need VALID, existing ids to
+// mutate onto -- a random UUID would fail on a foreign-key violation before
+// the pinned-field RLS WITH CHECK is ever reached, which proves nothing
+// about the policy these tests exist to pin. projectId2 sits in the same
+// workspace as the fixture project; missionId2 sits under the fixture
+// project itself (not project2); workspaceId2 is a second, otherwise
+// unrelated workspace that the member is also a member of, so cross-tenant
+// membership itself is never the reason the mutation is rejected.
+let projectId2 = "";
+let missionId2 = "";
+let workspaceId2 = "";
+
+let ownerClient: SupabaseClient;
+let memberClient: SupabaseClient;
+let outsiderClient: SupabaseClient;
+
+async function createTemporaryUser(email: string) {
+  const { data, error } = await admin.auth.admin.createUser({
+    email,
+    password,
+    email_confirm: true,
+  });
+
+  if (error || !data.user) {
+    throw new Error(`Unable to create temporary Auth user: ${error?.message ?? "unknown error"}`);
+  }
+
+  return data.user.id;
+}
+
+async function createSignedInClient(email: string) {
+  const client = createClient(supabaseUrl!, publishableKey!, clientOptions);
+
+  const { error } = await client.auth.signInWithPassword({
+    email,
+    password,
+  });
+
+  if (error) {
+    throw new Error(`Unable to sign in temporary Auth user: ${error.message}`);
+  }
+
+  return client;
+}
+
+function validDraftPayload() {
+  return {
+    mission_id: missionId,
+    project_id: projectId,
+    workspace_id: workspaceId,
+    schema_version: "1.0.0",
+    summary: "The mission is on track.",
+    suggested_actions: ["Follow up with the reviewer", "Update the draft"],
+    confidence_score: 0.92,
+    confidence_tier: "HIGH",
+    created_by: memberId,
+  };
+}
+
+async function insertPendingDraft() {
+  const result = await memberClient
+    .from("mission_ai_drafts")
+    .insert(validDraftPayload())
+    .select("id")
+    .single();
+
+  if (result.error || !result.data) {
+    throw new Error(`Unable to insert draft fixture: ${result.error?.message ?? "unknown error"}`);
+  }
+
+  return result.data.id as string;
+}
+
+describe("mission_ai_drafts — persistence, RLS, and Section 4.4 HITL gate", () => {
+  beforeAll(async () => {
+    ownerId = await createTemporaryUser(ownerEmail);
+    memberId = await createTemporaryUser(memberEmail);
+    outsiderId = await createTemporaryUser(outsiderEmail);
+
+    ownerClient = await createSignedInClient(ownerEmail);
+    memberClient = await createSignedInClient(memberEmail);
+    outsiderClient = await createSignedInClient(outsiderEmail);
+
+    const workspaceSlug = `ai-draft-${runId}`;
+
+    const workspaceResult = await ownerClient.rpc("create_workspace_with_owner", {
+      p_name: `AI Draft Workspace ${runId}`,
+      p_slug: workspaceSlug,
+    });
+
+    if (workspaceResult.error || !workspaceResult.data) {
+      throw new Error(
+        `Unable to create workspace: ${workspaceResult.error?.message ?? "unknown error"}`,
+      );
+    }
+
+    workspaceId = workspaceResult.data as string;
+
+    const memberInsert = await ownerClient.from("workspace_members").insert({
+      workspace_id: workspaceId,
+      user_id: memberId,
+      role: "member",
+    });
+
+    if (memberInsert.error) {
+      throw new Error(`Unable to add workspace member: ${memberInsert.error.message}`);
+    }
+
+    const projectResult = await ownerClient
+      .from("projects")
+      .insert({
+        workspace_id: workspaceId,
+        name: `AI Draft Project ${runId}`,
+        description: "Temporary project for mission_ai_drafts verification.",
+        created_by: ownerId,
+      })
+      .select("id")
+      .single();
+
+    if (projectResult.error || !projectResult.data) {
+      throw new Error(
+        `Unable to create project: ${projectResult.error?.message ?? "unknown error"}`,
+      );
+    }
+
+    projectId = projectResult.data.id;
+
+    const missionResult = await ownerClient
+      .from("missions")
+      .insert({
+        project_id: projectId,
+        title: `AI Draft Mission ${runId}`,
+        description: "Temporary mission for mission_ai_drafts verification.",
+        status: "todo",
+        priority: "medium",
+        created_by: ownerId,
+      })
+      .select("id")
+      .single();
+
+    if (missionResult.error || !missionResult.data) {
+      throw new Error(
+        `Unable to create mission: ${missionResult.error?.message ?? "unknown error"}`,
+      );
+    }
+
+    missionId = missionResult.data.id;
+
+    // --- Second-tenant fixture rows for the pinned-field cases (finding F8) ---
+
+    const projectResult2 = await ownerClient
+      .from("projects")
+      .insert({
+        workspace_id: workspaceId,
+        name: `AI Draft Project 2 ${runId}`,
+        description: "Second temporary project for pinned-field regression coverage.",
+        created_by: ownerId,
+      })
+      .select("id")
+      .single();
+
+    if (projectResult2.error || !projectResult2.data) {
+      throw new Error(
+        `Unable to create second project: ${projectResult2.error?.message ?? "unknown error"}`,
+      );
+    }
+
+    projectId2 = projectResult2.data.id;
+
+    const missionResult2 = await ownerClient
+      .from("missions")
+      .insert({
+        project_id: projectId,
+        title: `AI Draft Mission 2 ${runId}`,
+        description: "Second temporary mission for pinned-field regression coverage.",
+        status: "todo",
+        priority: "medium",
+        created_by: ownerId,
+      })
+      .select("id")
+      .single();
+
+    if (missionResult2.error || !missionResult2.data) {
+      throw new Error(
+        `Unable to create second mission: ${missionResult2.error?.message ?? "unknown error"}`,
+      );
+    }
+
+    missionId2 = missionResult2.data.id;
+
+    const workspaceSlug2 = `ai-draft-2-${runId}`;
+
+    const workspaceResult2 = await ownerClient.rpc("create_workspace_with_owner", {
+      p_name: `AI Draft Workspace 2 ${runId}`,
+      p_slug: workspaceSlug2,
+    });
+
+    if (workspaceResult2.error || !workspaceResult2.data) {
+      throw new Error(
+        `Unable to create second workspace: ${workspaceResult2.error?.message ?? "unknown error"}`,
+      );
+    }
+
+    workspaceId2 = workspaceResult2.data as string;
+
+    // Admin inserts (not ownerClient): the member's membership in this
+    // second, otherwise-unrelated workspace is fixture setup, not part of
+    // what the pinned-field test itself exercises.
+    const memberInsert2 = await admin.from("workspace_members").insert({
+      workspace_id: workspaceId2,
+      user_id: memberId,
+      role: "member",
+    });
+
+    if (memberInsert2.error) {
+      throw new Error(
+        `Unable to add workspace member to second workspace: ${memberInsert2.error.message}`,
+      );
+    }
+  });
+
+  afterAll(async () => {
+    // Cascade cleanup is fine here: mission_ai_drafts uses ON DELETE CASCADE
+    // (unlike inference_logs, which uses RESTRICT). Deleting each workspace
+    // is expected to succeed and take everything else -- including
+    // projectId2 and missionId2, which live under the first workspace --
+    // with it.
+    if (workspaceId) {
+      const { error } = await ownerClient.from("workspaces").delete().eq("id", workspaceId);
+
+      if (error) {
+        throw new Error(`Unable to clean up temporary workspace: ${error.message}`);
+      }
+    }
+
+    if (workspaceId2) {
+      const { error } = await ownerClient.from("workspaces").delete().eq("id", workspaceId2);
+
+      if (error) {
+        throw new Error(`Unable to clean up second temporary workspace: ${error.message}`);
+      }
+    }
+
+    for (const userId of [ownerId, memberId, outsiderId]) {
+      if (!userId) continue;
+
+      const { error } = await admin.auth.admin.deleteUser(userId);
+
+      if (error) {
+        throw new Error(`Unable to clean up temporary Auth user: ${error.message}`);
+      }
+    }
+  });
+
+  it("allows a workspace member to insert a pending_review draft", async () => {
+    const result = await memberClient
+      .from("mission_ai_drafts")
+      .insert(validDraftPayload())
+      .select("id, status")
+      .single();
+
+    expect(result.error).toBeNull();
+    expect(result.data?.status).toBe("pending_review");
+  });
+
+  it("blocks an outsider from inserting a draft for a foreign workspace", async () => {
+    const result = await outsiderClient.from("mission_ai_drafts").insert(validDraftPayload());
+
+    expect(result.error).not.toBeNull();
+  });
+
+  it("lets any workspace member (not just the owner) read drafts in their workspace", async () => {
+    const draftId = await insertPendingDraft();
+
+    const ownerRead = await ownerClient.from("mission_ai_drafts").select("id").eq("id", draftId);
+    const memberRead = await memberClient
+      .from("mission_ai_drafts")
+      .select("id")
+      .eq("id", draftId);
+
+    expect(ownerRead.error).toBeNull();
+    expect(ownerRead.data).toHaveLength(1);
+    expect(memberRead.error).toBeNull();
+    expect(memberRead.data).toHaveLength(1);
+  });
+
+  it("hides drafts from an outsider entirely", async () => {
+    const draftId = await insertPendingDraft();
+
+    const result = await outsiderClient.from("mission_ai_drafts").select("id").eq("id", draftId);
+
+    expect(result.error).toBeNull();
+    expect(result.data).toHaveLength(0);
+  });
+
+  it("rejects a direct client attempt to self-approve (spoofing approved_by/approved_at)", async () => {
+    const draftId = await insertPendingDraft();
+
+    const result = await memberClient
+      .from("mission_ai_drafts")
+      .update({
+        status: "applied",
+        approved_by: memberId,
+        approved_at: new Date().toISOString(),
+      })
+      .eq("id", draftId);
+
+    expect(result.error).not.toBeNull();
+  });
+
+  it("allows a member to dismiss their own pending draft directly", async () => {
+    const draftId = await insertPendingDraft();
+
+    const updateResult = await memberClient
+      .from("mission_ai_drafts")
+      .update({ status: "dismissed" })
+      .eq("id", draftId);
+
+    expect(updateResult.error).toBeNull();
+
+    const readBack = await memberClient
+      .from("mission_ai_drafts")
+      .select("status")
+      .eq("id", draftId)
+      .single();
+
+    expect(readBack.data?.status).toBe("dismissed");
+  });
+
+  it("rejects approval from an outsider via the RPC", async () => {
+    const draftId = await insertPendingDraft();
+
+    const result = await outsiderClient.rpc("approve_mission_ai_draft", {
+      p_draft_id: draftId,
+    });
+
+    expect(result.error).not.toBeNull();
+  });
+
+  it("approves a pending draft through approve_mission_ai_draft and stamps approved_by/approved_at", async () => {
+    const draftId = await insertPendingDraft();
+
+    const approveResult = await memberClient.rpc("approve_mission_ai_draft", {
+      p_draft_id: draftId,
+    });
+
+    expect(approveResult.error).toBeNull();
+
+    const readBack = await memberClient
+      .from("mission_ai_drafts")
+      .select("status, approved_by, approved_at")
+      .eq("id", draftId)
+      .single();
+
+    expect(readBack.error).toBeNull();
+    expect(readBack.data?.status).toBe("applied");
+    expect(readBack.data?.approved_by).toBe(memberId);
+    expect(readBack.data?.approved_at).not.toBeNull();
+  });
+
+  it("rejects re-approving a draft that is no longer pending_review", async () => {
+    const draftId = await insertPendingDraft();
+
+    const first = await memberClient.rpc("approve_mission_ai_draft", { p_draft_id: draftId });
+    expect(first.error).toBeNull();
+
+    const second = await memberClient.rpc("approve_mission_ai_draft", { p_draft_id: draftId });
+    expect(second.error).not.toBeNull();
+  });
+
+  it("silently leaves an already-applied draft unchanged under a direct client UPDATE", async () => {
+    const draftId = await insertPendingDraft();
+
+    const approve = await memberClient.rpc("approve_mission_ai_draft", { p_draft_id: draftId });
+    expect(approve.error).toBeNull();
+
+    await memberClient
+      .from("mission_ai_drafts")
+      .update({ summary: "attempted post-approval edit" })
+      .eq("id", draftId);
+
+    const readBack = await memberClient
+      .from("mission_ai_drafts")
+      .select("summary")
+      .eq("id", draftId)
+      .single();
+
+    expect(readBack.data?.summary).toBe(validDraftPayload().summary);
+  });
+
+  it("rejects a direct service-role UPDATE to 'applied' without approved_by/approved_at, proving the trigger is a real database boundary", async () => {
+    const draftId = await insertPendingDraft();
+
+    const result = await admin.from("mission_ai_drafts").update({ status: "applied" }).eq(
+      "id",
+      draftId,
+    );
+
+    expect(result.error).not.toBeNull();
+    expect(result.error?.message ?? "").toMatch(/approved_by and approved_at/i);
+  });
+
+  it("allows a direct service-role UPDATE to 'applied' when approved_by/approved_at are both provided", async () => {
+    const draftId = await insertPendingDraft();
+
+    const result = await admin
+      .from("mission_ai_drafts")
+      .update({
+        status: "applied",
+        approved_by: ownerId,
+        approved_at: new Date().toISOString(),
+      })
+      .eq("id", draftId);
+
+    expect(result.error).toBeNull();
+
+    const readBack = await admin
+      .from("mission_ai_drafts")
+      .select("status")
+      .eq("id", draftId)
+      .single();
+
+    expect(readBack.data?.status).toBe("applied");
+  });
+
+  // --- Permanent regression coverage for findings 4e, 4f and the pinned-
+  // field tightening, added per the 26 Sep 2026 Option B delta re-audit
+  // (claude/2026-09-26-m2-option-b-delta-reaudit.md, finding F3) and
+  // migration 20260926130000_harden_mission_ai_drafts_hitl_gate.sql. These
+  // pin the exact defects that migration closed so a future change cannot
+  // silently reopen them. ---
+
+  it("rejects a direct service-role INSERT landing straight on 'applied' with missing approvals (finding 4e)", async () => {
+    // Before 20260926130000 the HITL trigger was BEFORE UPDATE only, so an
+    // INSERT that spoofed status='applied' from the outset was never
+    // checked at all. The trigger is now BEFORE INSERT OR UPDATE.
+    const result = await admin
+      .from("mission_ai_drafts")
+      .insert({
+        ...validDraftPayload(),
+        status: "applied", // forged directly at INSERT time, no approvals
+      })
+      .select("id")
+      .single();
+
+    expect(result.error).not.toBeNull();
+    expect(result.error?.message ?? "").toMatch(/approved_by and approved_at/i);
+  });
+
+  it("rejects a direct service-role UPDATE to 'applied' that also flips is_ai_generated=false (finding 4f)", async () => {
+    // Before 20260926130000 the gate condition was
+    // `new.status = 'applied' and new.is_ai_generated`, so flipping
+    // is_ai_generated to false in the same statement that forged
+    // status='applied' escaped the gate entirely. The gate function no
+    // longer keys off is_ai_generated at all: any row landing on 'applied'
+    // must carry both approval fields, full stop.
+    const draftId = await insertPendingDraft();
+
+    const result = await admin
+      .from("mission_ai_drafts")
+      .update({ status: "applied", is_ai_generated: false }) // still no approved_by/approved_at
+      .eq("id", draftId);
+
+    expect(result.error).not.toBeNull();
+    expect(result.error?.message ?? "").toMatch(/approved_by and approved_at/i);
+
+    const readBack = await admin
+      .from("mission_ai_drafts")
+      .select("status, is_ai_generated")
+      .eq("id", draftId)
+      .single();
+
+    expect(readBack.data?.status).toBe("pending_review");
+    expect(readBack.data?.is_ai_generated).toBe(true);
+  });
+
+  it("allows an ordinary member content edit while pending_review, leaving every pinned field unchanged", async () => {
+    // Positive control paired with the pinned-field rejections below: an
+    // otherwise-permitted edit (still pending_review, no pinned field
+    // touched) must keep working exactly as before 20260926130000.
+    const draftId = await insertPendingDraft();
+
+    const result = await memberClient
+      .from("mission_ai_drafts")
+      .update({ summary: "Edited by the member while still pending review." })
+      .eq("id", draftId);
+
+    expect(result.error).toBeNull();
+
+    const readBack = await memberClient
+      .from("mission_ai_drafts")
+      .select("summary, status")
+      .eq("id", draftId)
+      .single();
+
+    expect(readBack.data?.summary).toBe("Edited by the member while still pending review.");
+    expect(readBack.data?.status).toBe("pending_review");
+  });
+
+  const pinnedFieldCases: Array<[string, () => string | boolean]> = [
+    ["is_ai_generated", (): boolean => false],
+    ["created_by", (): string => ownerId],
+    // Valid, existing cross-tenant ids (finding F8) -- not randomUUID(),
+    // which would trip a foreign-key violation before the pinned-field RLS
+    // WITH CHECK is ever reached and so would not prove this policy at all.
+    ["workspace_id", (): string => workspaceId2],
+    ["project_id", (): string => projectId2],
+    ["mission_id", (): string => missionId2],
+  ];
+
+  it.each(pinnedFieldCases)(
+    "rejects an authenticated member attempt to mutate the pinned field %s in an otherwise-permitted edit",
+    async (fieldName, newValue) => {
+      // migration 20260926130000, part (d): mission_ai_drafts_update_member's
+      // WITH CHECK now pins is_ai_generated, created_by, workspace_id,
+      // project_id, and mission_id to their pre-update value via correlated
+      // subselects, so a member cannot launder any of them through an
+      // otherwise-permitted content edit.
+      const draftId = await insertPendingDraft();
+
+      const result = await memberClient
+        .from("mission_ai_drafts")
+        .update({
+          summary: "Bundled with a pinned-field mutation attempt.",
+          [fieldName]: newValue(),
+        })
+        .eq("id", draftId);
+
+      expect(result.error).not.toBeNull();
+      // Prove the rejection actually comes from the pinned-field RLS WITH
+      // CHECK, not some other failure mode (e.g. a foreign-key violation on
+      // a made-up id) that happens to also produce a non-null error.
+      expect(result.error?.message ?? "").toMatch(/row-level security/i);
+
+      // Prove the whole statement was rejected, not merely the pinned
+      // column: the bundled, otherwise-legal summary edit must not have
+      // landed either.
+      const readBack = await memberClient
+        .from("mission_ai_drafts")
+        .select("summary")
+        .eq("id", draftId)
+        .single();
+
+      expect(readBack.data?.summary).toBe(validDraftPayload().summary);
+    },
+  );
+});

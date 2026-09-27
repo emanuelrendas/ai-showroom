@@ -1,0 +1,36 @@
+-- C2 / Block 3 mutation proof — RED-2 step.
+--
+-- Purpose: remove the table-level CHECK constraint
+-- (mission_ai_drafts_approval_state_check) IN ADDITION to the trigger
+-- already dropped by disable-mission-ai-drafts-hitl-gate.sql (RED-1), and
+-- prove that with BOTH of those protections gone, the forged
+-- status='applied' transition (service-role, null approval fields) that
+-- GREEN and RED-1 both rejected now SUCCEEDS.
+--
+-- This is RED-2 of the three-step layered mutation proof required by the
+-- 26 Sep 2026 Option B delta re-audit (claude/2026-09-26-m2-option-b-delta-
+-- reaudit.md, finding F1) and Emanuel's selected Option 1 (layered proof).
+-- Run once, transiently, inside the E4 mutation-proof test in
+-- tests/e2e/milestone-2-security-boundary.spec.ts, immediately after
+-- disable-mission-ai-drafts-hitl-gate.sql in the same test run. Together
+-- they prove: TRIGGER absent + CHECK absent -> forged transition SUCCEEDS,
+-- which is what establishes that the trigger and the CHECK -- not RLS
+-- (bypassed by service_role by construction), not app code, not
+-- coincidence -- are exactly what stand between a privileged writer and a
+-- forged 'applied' row.
+--
+-- This does not touch the hosted Supabase project (yljvselkecxdfrqwyums stays
+-- paused throughout, per the dispatch's NO HOSTED SUPABASE RESTORE
+-- constraint). It runs only against the local stack started by
+-- `npx supabase start`, via `supabase db query --local --file <this file>`.
+--
+-- Exact inverse of part (c) in
+-- supabase/migrations/20260926130000_harden_mission_ai_drafts_hitl_gate.sql
+-- (lines 79-85). Nothing else is touched: the trigger function, and the
+-- RLS policies on public.mission_ai_drafts, are left exactly as they are
+-- (the trigger itself is already down from RED-1; this script does not
+-- re-check or depend on that -- `drop constraint if exists` makes this
+-- script safe to run standalone as well).
+
+alter table public.mission_ai_drafts
+  drop constraint if exists mission_ai_drafts_approval_state_check;

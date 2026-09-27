@@ -1,0 +1,11 @@
+$ npx next typegen
+Sat Sep 26 09:37:08 UTC 2026
+Generating route types...
+✓ Types generated successfully
+---
+$ npm run typecheck
+
+> ai-showroom@0.1.0 typecheck
+> tsc --noEmit
+
+EXIT: 0

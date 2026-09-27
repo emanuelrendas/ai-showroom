@@ -1,0 +1,43 @@
+$ npx next typegen && npm run typecheck (re-run after RED-2 cleanup fix)
+Sat Sep 26 09:50:24 UTC 2026
+Generating route types...
+✓ Types generated successfully
+
+> ai-showroom@0.1.0 typecheck
+> tsc --noEmit
+
+TYPECHECK EXIT: 0
+
+$ npm run lint
+
+> ai-showroom@0.1.0 lint
+> eslint
+
+
+/home/claude/ai-showroom/tests/unit/obsidian-sync-canary-runner.test.ts
+  167:5   warning  '_repoPath' is defined but never used  @typescript-eslint/no-unused-vars
+  168:5   warning  '_branch' is defined but never used    @typescript-eslint/no-unused-vars
+  179:5   warning  '_repoPath' is defined but never used  @typescript-eslint/no-unused-vars
+  180:5   warning  '_branch' is defined but never used    @typescript-eslint/no-unused-vars
+  864:13  warning  '_repoPath' is defined but never used  @typescript-eslint/no-unused-vars
+  865:13  warning  '_branch' is defined but never used    @typescript-eslint/no-unused-vars
+
+✖ 6 problems (0 errors, 6 warnings)
+
+LINT EXIT: 0
+
+$ npm test
+
+> ai-showroom@0.1.0 test
+> vitest run
+
+
+ RUN  v4.1.11 /home/claude/ai-showroom
+
+
+ Test Files  32 passed (32)
+      Tests  308 passed (308)
+   Start at  13:50:48
+   Duration  6.98s (transform 717ms, setup 0ms, import 1.57s, tests 1.03s, environment 3ms)
+
+UNIT EXIT: 0

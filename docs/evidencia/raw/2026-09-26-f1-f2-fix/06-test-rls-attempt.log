@@ -1,0 +1,64 @@
+$ npm run test:rls
+Sat Sep 26 09:47:33 UTC 2026
+
+> ai-showroom@0.1.0 test:rls
+> node --env-file=.env.test.local ./node_modules/vitest/vitest.mjs run --config vitest.rls.config.ts
+
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - ESM syntax in a file loaded as CommonJS (vitest.rls.config.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v4.1.11 /home/claude/ai-showroom
+
+ ❯ tests/rls/mission-ai-drafts.rls.test.ts (20 tests | 20 skipped) 33ms
+ ❯ tests/rls/inference-logs.rls.test.ts (12 tests | 12 skipped) 22ms
+ ❯ tests/rls/milestone-1.rls.test.ts (7 tests | 7 skipped) 22ms
+
+⎯⎯⎯⎯⎯⎯ Failed Suites 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/rls/inference-logs.rls.test.ts > inference_logs — persistence, RLS, and append-only enforcement
+Error: Unable to create temporary Auth user: fetch failed
+ ❯ createTemporaryUser tests/rls/inference-logs.rls.test.ts:57:11
+     55|
+     56|   if (error || !data.user) {
+     57|     throw new Error(`Unable to create temporary Auth user: ${error?.me…
+       |           ^
+     58|   }
+     59|
+ ❯ tests/rls/inference-logs.rls.test.ts:99:15
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL  tests/rls/milestone-1.rls.test.ts > Milestone 1 RLS isolation
+Error: Unable to create temporary Auth user: fetch failed
+ ❯ createTemporaryUser tests/rls/milestone-1.rls.test.ts:52:11
+     50|
+     51|   if (error || !data.user) {
+     52|     throw new Error(`Unable to create temporary Auth user: ${error?.me…
+       |           ^
+     53|   }
+     54|
+ ❯ tests/rls/milestone-1.rls.test.ts:75:15
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+ FAIL  tests/rls/mission-ai-drafts.rls.test.ts > mission_ai_drafts — persistence, RLS, and Section 4.4 HITL gate
+Error: Unable to create temporary Auth user: fetch failed
+ ❯ createTemporaryUser tests/rls/mission-ai-drafts.rls.test.ts:53:11
+     51|
+     52|   if (error || !data.user) {
+     53|     throw new Error(`Unable to create temporary Auth user: ${error?.me…
+       |           ^
+     54|   }
+     55|
+ ❯ tests/rls/mission-ai-drafts.rls.test.ts:104:15
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+
+
+ Test Files  3 failed (3)
+      Tests  39 skipped (39)
+   Start at  13:47:40
+   Duration  2.51s (transform 215ms, setup 0ms, import 630ms, tests 77ms, environment 0ms)
+
+EXIT: 1

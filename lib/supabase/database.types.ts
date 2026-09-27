@@ -14,6 +14,79 @@ export type Database = {
   }
   public: {
     Tables: {
+      inference_logs: {
+        Row: {
+          completion_tokens: number | null
+          cost_usd_micros: number | null
+          created_at: string
+          failure_reason: string | null
+          id: string
+          latency_ms: number
+          mission_id: string
+          model_identifier: string | null
+          project_id: string
+          prompt_tokens: number | null
+          status: string
+          task_type: string
+          total_tokens: number | null
+          workspace_id: string
+        }
+        Insert: {
+          completion_tokens?: number | null
+          cost_usd_micros?: number | null
+          created_at?: string
+          failure_reason?: string | null
+          id?: string
+          latency_ms: number
+          mission_id: string
+          model_identifier?: string | null
+          project_id: string
+          prompt_tokens?: number | null
+          status: string
+          task_type: string
+          total_tokens?: number | null
+          workspace_id: string
+        }
+        Update: {
+          completion_tokens?: number | null
+          cost_usd_micros?: number | null
+          created_at?: string
+          failure_reason?: string | null
+          id?: string
+          latency_ms?: number
+          mission_id?: string
+          model_identifier?: string | null
+          project_id?: string
+          prompt_tokens?: number | null
+          status?: string
+          task_type?: string
+          total_tokens?: number | null
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inference_logs_mission_id_fkey"
+            columns: ["mission_id"]
+            isOneToOne: false
+            referencedRelation: "missions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inference_logs_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inference_logs_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       conversations: {
         Row: {
           created_at: string
@@ -94,6 +167,99 @@ export type Database = {
             columns: ["conversation_id"]
             isOneToOne: false
             referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mission_ai_drafts: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          confidence_score: number
+          confidence_tier: string
+          created_at: string
+          created_by: string
+          id: string
+          is_ai_generated: boolean
+          mission_id: string
+          project_id: string
+          schema_version: string
+          status: string
+          suggested_actions: string[]
+          summary: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          confidence_score: number
+          confidence_tier: string
+          created_at?: string
+          created_by: string
+          id?: string
+          is_ai_generated?: boolean
+          mission_id: string
+          project_id: string
+          schema_version: string
+          status?: string
+          suggested_actions: string[]
+          summary: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          confidence_score?: number
+          confidence_tier?: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          is_ai_generated?: boolean
+          mission_id?: string
+          project_id?: string
+          schema_version?: string
+          status?: string
+          suggested_actions?: string[]
+          summary?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mission_ai_drafts_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mission_ai_drafts_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mission_ai_drafts_mission_id_fkey"
+            columns: ["mission_id"]
+            isOneToOne: false
+            referencedRelation: "missions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mission_ai_drafts_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mission_ai_drafts_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
             referencedColumns: ["id"]
           },
         ]
@@ -297,6 +463,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      approve_mission_ai_draft: {
+        Args: { p_draft_id: string }
+        Returns: undefined
+      }
       create_workspace_with_owner: {
         Args: { p_name: string; p_slug: string }
         Returns: string
