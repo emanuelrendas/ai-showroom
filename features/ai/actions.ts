@@ -10,7 +10,12 @@ import { generateMissionAiDraft } from "./generate-mission-ai-draft";
 import { InferenceExecutionWrapper, TASK_TYPES, type TaskType } from "./inference-wrapper";
 import { SupabaseInferenceLogWriter } from "./inference-log-supabase-adapter";
 import { SupabaseMissionAiDraftWriter } from "./mission-ai-draft-writer";
-import { getCostEstimator, getModelProviderAdapter, getPromptTemplates } from "./provider";
+import { getPromptTemplates } from "./provider";
+import { routeModel } from "./router/router";
+import { resolveModelProfile } from "./router/resolvers";
+import { TASK_REQUIRED_CAPABILITIES } from "./router/routing-policy";
+import { getRouterFailureMessage, toRouteMetadata } from "./router/presentation";
+import type { RouteRequest } from "./router/types";
 
 export type MissionAiDraftActionState = {
   error: string | null;
@@ -59,11 +64,30 @@ export async function generateMissionAiDraftAction(
     return { error: "Authentication required." };
   }
 
+  const routeRequest: RouteRequest = {
+    task_type: taskType,
+    required_capabilities: TASK_REQUIRED_CAPABILITIES[taskType],
+    prompt_context_chars: promptContext.length,
+    preference: "balanced",
+    override_profile_id: null,
+    override_source: "none",
+  };
+  const route = routeModel(routeRequest);
+  if (!route.ok) {
+    return { error: getRouterFailureMessage(route.failure.code) };
+  }
+
+  const resolution = resolveModelProfile(route.decision.selected_profile_id);
+  if (!resolution.ok) {
+    return { error: getRouterFailureMessage(resolution.failure.code) };
+  }
+
   const wrapper = new InferenceExecutionWrapper({
-    provider: getModelProviderAdapter(),
+    provider: resolution.provider,
     promptTemplates: getPromptTemplates(),
     inferenceLogger: new SupabaseInferenceLogWriter(supabase),
-    costEstimator: getCostEstimator(),
+    costEstimator: resolution.costEstimator,
+    routeMetadata: toRouteMetadata(route.decision),
   });
 
   const result = await generateMissionAiDraft(

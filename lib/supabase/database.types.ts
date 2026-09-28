@@ -24,8 +24,12 @@ export type Database = {
           latency_ms: number
           mission_id: string
           model_identifier: string | null
+          override_source: string | null
           project_id: string
           prompt_tokens: number | null
+          route_reason_code: string | null
+          router_policy_version: string | null
+          selected_profile_id: string | null
           status: string
           task_type: string
           total_tokens: number | null
@@ -40,8 +44,12 @@ export type Database = {
           latency_ms: number
           mission_id: string
           model_identifier?: string | null
+          override_source?: string | null
           project_id: string
           prompt_tokens?: number | null
+          route_reason_code?: string | null
+          router_policy_version?: string | null
+          selected_profile_id?: string | null
           status: string
           task_type: string
           total_tokens?: number | null
@@ -56,8 +64,12 @@ export type Database = {
           latency_ms?: number
           mission_id?: string
           model_identifier?: string | null
+          override_source?: string | null
           project_id?: string
           prompt_tokens?: number | null
+          route_reason_code?: string | null
+          router_policy_version?: string | null
+          selected_profile_id?: string | null
           status?: string
           task_type?: string
           total_tokens?: number | null

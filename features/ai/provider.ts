@@ -186,6 +186,11 @@ function invokeDeterministicStub(
   });
 }
 
+export function isModelProviderConfigured(): boolean {
+  return process.env[DETERMINISTIC_TEST_PROVIDER_ENV_VAR] === "1" ||
+    Boolean(process.env.GEMINI_API_KEY?.trim());
+}
+
 export function getModelProviderAdapter(): ModelProviderAdapter {
   if (process.env[DETERMINISTIC_TEST_PROVIDER_ENV_VAR] === "1") {
     return { invoke: invokeDeterministicStub };
