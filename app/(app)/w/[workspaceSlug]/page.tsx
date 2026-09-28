@@ -44,12 +44,12 @@ export default async function WorkspacePage({
           </div>
 
           {projects.length > 0 ? (
-            <div className="grid gap-3 md:grid-cols-2">
+            <div className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-surface">
               {projects.map((project) => (
                 <Link
                   key={project.id}
                   href={`/w/${workspace.slug}/projects/${project.id}`}
-                  className="block rounded-xl border border-border bg-surface p-5 transition-colors duration-[var(--motion-nav)] hover:border-primary/60 hover:bg-surface-raised focus-visible:outline-2 focus-visible:outline-ring"
+                  className="block px-5 py-5 transition-colors duration-[var(--motion-nav)] hover:bg-surface-raised focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-[-2px] sm:px-6"
                 >
                   <div className="flex flex-wrap items-start justify-between gap-4">
                     <div className="min-w-0">
