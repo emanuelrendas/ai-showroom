@@ -48,14 +48,14 @@ export function GenerateDraftForm({
     <form
       action={formAction}
       aria-label="Generate an AI draft for this mission"
-      className="space-y-4 border border-neutral-800 p-5"
+      className="space-y-5 rounded-xl border border-border bg-surface-raised p-5 shadow-sm sm:p-6"
     >
-      <div className="flex items-center justify-between gap-4">
-        <h3 className="text-sm font-semibold text-neutral-200">
+      <div className="space-y-2 border-b border-border pb-5">
+        <h3 className="text-base font-semibold text-foreground">
           Generate AI draft
         </h3>
-        <p className="text-xs text-neutral-500">
-          One model call, always reviewed by a human before it counts.
+        <p className="text-sm leading-6 text-text-secondary">
+          AI output remains a draft requiring human review.
         </p>
       </div>
 
@@ -65,7 +65,7 @@ export function GenerateDraftForm({
           id="draft-task-type"
           name="task_type"
           defaultValue="summarize"
-          className="h-9 w-full rounded-md border border-neutral-800 bg-neutral-950 px-3 text-sm text-neutral-200"
+          className="h-11 w-full rounded-lg border border-input bg-surface px-3 text-sm text-foreground transition-colors duration-[var(--motion-micro)] focus-visible:outline-2 focus-visible:outline-ring"
         >
           {TASK_TYPES.map((taskType) => (
             <option key={taskType} value={taskType}>
@@ -76,23 +76,24 @@ export function GenerateDraftForm({
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="draft-prompt-context">Context for the model</Label>
+        <Label htmlFor="draft-prompt-context">Prompt / Context</Label>
         <Textarea
           id="draft-prompt-context"
           name="prompt_context"
           placeholder="Paste or describe the mission context the model should work from."
           minLength={PROMPT_CONTEXT_MIN_LENGTH}
           maxLength={PROMPT_CONTEXT_MAX_LENGTH}
-          rows={5}
+          rows={8}
+          className="min-h-44 resize-y bg-surface p-4 text-sm leading-6"
           required
         />
       </div>
 
-      <div aria-live="polite" role="status" className="min-h-5 text-sm text-red-400">
-        {state.error}
+      <div aria-live="polite" role="status" className={`min-h-5 text-sm ${state.error && !isPending ? "text-error" : "text-text-secondary"}`}>
+        {isPending ? "Generating…" : state.error || (state.draftId ? "Draft saved for human review." : "Ready to generate.")}
       </div>
 
-      <Button type="submit" disabled={isPending}>
+      <Button type="submit" disabled={isPending} className="min-h-10 px-5 motion-reduce:active:translate-y-0">
         {isPending ? "Generating…" : "Generate AI draft"}
       </Button>
     </form>

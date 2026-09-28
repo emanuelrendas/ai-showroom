@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   formatConfidenceScore,
+  formatDraftTimestamp,
   getConfidenceTierPresentation,
   getDraftStatusPresentation,
   isPromptContextLengthValid,
@@ -39,10 +40,10 @@ describe("getDraftStatusPresentation", () => {
 });
 
 describe("getConfidenceTierPresentation", () => {
-  it("maps HIGH to a default badge", () => {
+  it("keeps HIGH confidence visually secondary to review status", () => {
     expect(getConfidenceTierPresentation("HIGH")).toEqual({
       label: "High confidence",
-      variant: "default",
+      variant: "secondary",
     });
   });
 
@@ -65,6 +66,12 @@ describe("getConfidenceTierPresentation", () => {
       label: "UNKNOWN",
       variant: "ghost",
     });
+  });
+});
+
+describe("formatDraftTimestamp", () => {
+  it("labels persisted timestamps in a stable UTC format", () => {
+    expect(formatDraftTimestamp("2026-09-28T12:00:00Z")).toBe("28 Sept 2026, 12:00 UTC");
   });
 });
 

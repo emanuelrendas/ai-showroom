@@ -1,6 +1,5 @@
 // Presentation-only helpers for the HITL review surface (Sections 4.2/4.3).
-// Pure and framework-free so they can be unit-tested without a component
-// rendering harness, which this project does not yet have set up.
+// Pure and framework-free so they can be unit-tested.
 
 export type BadgeVariant =
   | "default"
@@ -30,7 +29,7 @@ export function getDraftStatusPresentation(status: string): StatusPresentation {
 export function getConfidenceTierPresentation(tier: string): StatusPresentation {
   switch (tier) {
     case "HIGH":
-      return { label: "High confidence", variant: "default" };
+      return { label: "High confidence", variant: "secondary" };
     case "MEDIUM":
       return { label: "Medium confidence", variant: "secondary" };
     case "LOW":
@@ -42,6 +41,14 @@ export function getConfidenceTierPresentation(tier: string): StatusPresentation 
 
 export function formatConfidenceScore(score: number): string {
   return `${Math.round(score * 100)}%`;
+}
+
+export function formatDraftTimestamp(value: string): string {
+  return `${new Date(value).toLocaleString("en-GB", {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: "UTC",
+  })} UTC`;
 }
 
 // Mirrors SingleModelInputSchema's prompt_context bounds (Section 3.3.1):
