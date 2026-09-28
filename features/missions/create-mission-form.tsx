@@ -52,14 +52,14 @@ export function CreateMissionForm({
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="mission-status">Status</Label>
           <select
             id="mission-status"
             name="status"
             defaultValue="todo"
-            className="h-9 w-full rounded-md border border-neutral-800 bg-neutral-950 px-3 text-sm text-neutral-200"
+            className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground focus-visible:outline-2 focus-visible:outline-ring"
           >
             <option value="todo">Todo</option>
             <option value="in_progress">In progress</option>
@@ -75,7 +75,7 @@ export function CreateMissionForm({
             id="mission-priority"
             name="priority"
             defaultValue="medium"
-            className="h-9 w-full rounded-md border border-neutral-800 bg-neutral-950 px-3 text-sm text-neutral-200"
+            className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground focus-visible:outline-2 focus-visible:outline-ring"
           >
             <option value="low">Low</option>
             <option value="medium">Medium</option>
@@ -85,7 +85,7 @@ export function CreateMissionForm({
         </div>
       </div>
 
-      <div aria-live="polite" className="min-h-5 text-sm text-red-400">
+      <div aria-live="polite" className="min-h-5 text-sm text-error">
         {state.error}
       </div>
 

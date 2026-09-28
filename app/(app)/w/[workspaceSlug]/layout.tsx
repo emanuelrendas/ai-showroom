@@ -1,6 +1,7 @@
 ﻿import { notFound } from "next/navigation";
 import { WorkspaceShell } from "@/features/workspaces/workspace-shell";
 import { getWorkspaceBySlug } from "@/features/workspaces/queries";
+import { getProjectsForWorkspace } from "@/features/projects/queries";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function WorkspaceLayout({
@@ -31,10 +32,13 @@ export default async function WorkspaceLayout({
     .eq("id", userId)
     .maybeSingle();
 
+  const projects = await getProjectsForWorkspace(workspace.id);
+
   return (
     <WorkspaceShell
       workspace={workspace}
       displayName={profile?.display_name ?? "Account"}
+      projects={projects.map(({ id, name }) => ({ id, name }))}
     >
       {children}
     </WorkspaceShell>
