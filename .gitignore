@@ -44,3 +44,7 @@ next-env.d.ts
 
 !.env.example
 !.env.test.example
+
+# Claude Code personal overrides
+CLAUDE.local.md
+.claude/settings.local.json
