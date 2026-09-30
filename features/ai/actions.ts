@@ -14,12 +14,14 @@ import { getPromptTemplates } from "./provider";
 import { routeModel } from "./router/router";
 import { resolveModelProfile } from "./router/resolvers";
 import { TASK_REQUIRED_CAPABILITIES } from "./router/routing-policy";
-import { getRouterFailureMessage, toRouteMetadata } from "./router/presentation";
+import { getGenerationFailureMessage, getRouterFailureMessage, toRouteMetadata, toRoutePresentation, type RoutePresentation } from "./router/presentation";
 import type { RouteRequest } from "./router/types";
 
 export type MissionAiDraftActionState = {
   error: string | null;
   draftId?: string;
+  route?: RoutePresentation | null;
+  failureCategory?: "routing" | "resolution" | "generation";
 };
 
 export async function generateMissionAiDraftAction(
@@ -74,12 +76,13 @@ export async function generateMissionAiDraftAction(
   };
   const route = routeModel(routeRequest);
   if (!route.ok) {
-    return { error: getRouterFailureMessage(route.failure.code) };
+    return { error: getRouterFailureMessage(route.failure.code), failureCategory: "routing" };
   }
 
+  const routePresentation = toRoutePresentation(route.decision);
   const resolution = resolveModelProfile(route.decision.selected_profile_id);
   if (!resolution.ok) {
-    return { error: getRouterFailureMessage(resolution.failure.code) };
+    return { error: getRouterFailureMessage(resolution.failure.code), failureCategory: "resolution", route: routePresentation };
   }
 
   const wrapper = new InferenceExecutionWrapper({
@@ -106,11 +109,11 @@ export async function generateMissionAiDraftAction(
   );
 
   if (!result.ok) {
-    return { error: result.failure.message };
+    return { error: getGenerationFailureMessage(result.failure.code), failureCategory: "generation", route: routePresentation };
   }
 
   revalidatePath(`/w/${workspaceSlug}/projects/${projectId}/missions/${missionId}`);
-  return { error: null, draftId: result.draftId };
+  return { error: null, draftId: result.draftId, route: routePresentation };
 }
 
 export async function approveMissionAiDraftAction(

@@ -1,14 +1,21 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { expect, test, vi } from "vitest";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { MissionAiDraftsPanel } from "@/features/ai/mission-ai-drafts-panel";
 import type { MissionAiDraft } from "@/features/ai/types";
+import { generateMissionAiDraftAction } from "@/features/ai/actions";
+import { routeModel } from "@/features/ai/router/router";
+import { toRoutePresentation } from "@/features/ai/router/presentation";
+import { routeRequest } from "../unit/fixtures/router-profiles";
 
 vi.mock("@/features/ai/actions", () => ({
   generateMissionAiDraftAction: vi.fn(),
   approveMissionAiDraftAction: vi.fn(),
   dismissMissionAiDraftAction: vi.fn(),
 }));
+
+beforeEach(() => vi.resetAllMocks());
+afterEach(() => vi.unstubAllGlobals());
 
 const workspace = {
   id: "workspace-1", name: "Atelier", slug: "atelier", created_by: "user-1",
@@ -79,4 +86,39 @@ test("activity reports persisted draft facts and approved time", () => {
   expect(within(activity).getByText("Draft plan")).toBeTruthy();
   expect(within(activity).getByText("Applied")).toBeTruthy();
   expect(within(activity).getByText(/Approved/)).toBeTruthy();
+});
+
+test.each([false, true])("route result and human review survive mobile mode changes with reduced motion = %s", async (reducedMotion) => {
+  vi.stubGlobal("matchMedia", () => ({ matches: reducedMotion, media: "(prefers-reduced-motion: reduce)", addListener: vi.fn(), removeListener: vi.fn() }));
+  const result = routeModel(routeRequest);
+  if (!result.ok) throw new Error("Expected a production route");
+  vi.mocked(generateMissionAiDraftAction).mockResolvedValue({
+    error: null, draftId: draft.id, route: toRoutePresentation(result.decision),
+  });
+  const user = userEvent.setup();
+  const view = renderWorkspace();
+  const composer = screen.getByRole("form", { name: "Generate an AI draft for this mission" });
+  expect(within(composer).getByText("Routing: Auto")).toBeTruthy();
+  await user.type(within(composer).getByRole("textbox"), "Summarize the launch review notes.");
+  await user.click(within(composer).getByRole("button", { name: "Generate AI draft" }));
+  expect(await within(composer).findByText("Draft saved for human review.")).toBeTruthy();
+  // Model the refreshed server props after revalidation; approval is still pending.
+  view.rerender(<MissionAiDraftsPanel workspace={workspace} project={project} mission={mission} drafts={[draft]} />);
+  const modes = screen.getByRole("group", { name: "Mission working modes" });
+  for (const mode of ["Context", "Activity", "AI"]) {
+    const button = within(modes).getByRole("button", { name: mode });
+    button.focus();
+    await user.keyboard("{Enter}");
+    expect(button.getAttribute("aria-pressed")).toBe("true");
+  }
+  const ai = screen.getByRole("region", { name: "AI Workspace" });
+  expect(within(ai).getByText("Auto · Gemini 3.6 Flash")).toBeTruthy();
+  expect(within(ai).getByText("Automatically selected")).toBeTruthy();
+  expect(within(ai).getByText("Draft saved for human review.")).toBeTruthy();
+  expect(within(ai).getByText("Human review required")).toBeTruthy();
+  expect(within(ai).getByText("Pending review")).toBeTruthy();
+  expect(within(ai).getByRole("button", { name: "Approve" })).toBeTruthy();
+  expect(within(ai).getByRole("button", { name: "Dismiss" })).toBeTruthy();
+  expect(within(ai).getAllByRole("combobox")).toHaveLength(1);
+  expect(ai.textContent).not.toMatch(/synthetic-|Routing…|Validating…/);
 });

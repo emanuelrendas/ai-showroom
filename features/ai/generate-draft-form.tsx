@@ -57,6 +57,7 @@ export function GenerateDraftForm({
         <p className="text-sm leading-6 text-text-secondary">
           AI output remains a draft requiring human review.
         </p>
+        <p className="text-sm text-text-secondary">Routing: Auto</p>
       </div>
 
       <div className="space-y-2">
@@ -89,8 +90,21 @@ export function GenerateDraftForm({
         />
       </div>
 
-      <div aria-live="polite" role="status" className={`min-h-5 text-sm ${state.error && !isPending ? "text-error" : "text-text-secondary"}`}>
-        {isPending ? "Generating…" : state.error || (state.draftId ? "Draft saved for human review." : "Ready to generate.")}
+      <div aria-live="polite" aria-atomic="true" role="status" className="min-h-5 space-y-1 break-words text-sm text-text-secondary">
+        {isPending ? "Generating…" : (
+          <>
+            {state.route && (
+              <>
+                <p className="font-medium text-foreground">{state.route.mode} · {state.route.modelLabel}</p>
+                <p>{state.route.reason}</p>
+              </>
+            )}
+            <p className={state.error ? "text-error" : undefined}>
+              {state.error || (state.draftId ? "Draft saved for human review." : "Ready to generate.")}
+            </p>
+            {state.failureCategory === "resolution" && <p>Generation did not start.</p>}
+          </>
+        )}
       </div>
 
       <Button type="submit" disabled={isPending} className="min-h-10 px-5 motion-reduce:active:translate-y-0">
