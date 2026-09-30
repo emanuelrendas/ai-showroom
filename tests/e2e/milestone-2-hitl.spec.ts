@@ -10,6 +10,11 @@ const generationAttemptBudgetMs = 30_000;
 const retryBackoffMs = 5_000;
 const setupAndUiBudgetMs = 45_000;
 
+test.skip(
+  () => process.env.AI_SHOWROOM_DETERMINISTIC_TEST_PROVIDER === "1",
+  "Live Gemini smoke is outside the deterministic automated acceptance run.",
+);
+
 if (!supabaseUrl || !secretKey) {
   throw new Error("Missing E2E Supabase environment variables.");
 }
