@@ -86,6 +86,7 @@ test("Milestone 2 HITL browser journey with a real Gemini call", async ({ page }
 
     await page.getByRole("main").getByRole("link", { name: /AI Showroom E2E HITL/i }).click();
 
+    await page.getByRole("main").locator("summary").filter({ hasText: /^Create mission$/ }).click();
     await page.getByLabel("Mission title").fill("Verify Real Gemini HITL Cycle");
     await page
       .getByLabel("Description")

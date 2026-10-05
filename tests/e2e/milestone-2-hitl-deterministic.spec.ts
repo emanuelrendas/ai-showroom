@@ -92,6 +92,7 @@ test("E1 — full HITL cycle against the deterministic stub provider (generate, 
 
     await page.getByRole("main").getByRole("link", { name: /AI Showroom E2E Deterministic/i }).click();
 
+    await page.getByRole("main").locator("summary").filter({ hasText: /^Create mission$/ }).click();
     await page.getByLabel("Mission title").fill(missionTitle);
     await page
       .getByLabel("Description")
