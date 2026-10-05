@@ -121,11 +121,11 @@ test("E1 — full HITL cycle against the deterministic stub provider (generate, 
     // covers CI/local machine variance in the Next.js server action round trip.
     await expect(generateButton).toBeEnabled({ timeout: 15_000 });
 
-    const errorRegion = page.locator('[role="status"][aria-live="polite"]').first();
-    const errorText = (await errorRegion.textContent())?.trim();
-    if (errorText) {
-      throw new Error(`Deterministic draft generation reported an error: ${errorText}`);
-    }
+    await expect(
+      page.getByRole("form", { name: "Generate an AI draft for this mission" })
+        .getByRole("status")
+        .getByText("Draft saved for human review.", { exact: true }),
+    ).toBeVisible();
 
     // --- Steps 4-7: stub returns valid output, wrapper accepts it, telemetry
     // lands in inference_logs, mission_ai_drafts row created pending_review ---

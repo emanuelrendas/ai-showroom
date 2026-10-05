@@ -190,21 +190,25 @@ test("Milestone 2 HITL browser journey with a real Gemini call", async ({ page }
 
 async function generateDraftWithRetry(page: import("@playwright/test").Page) {
   const generateButton = page.getByRole("button", { name: /generate ai draft/i });
+  const generationStatus = page
+    .getByRole("form", { name: "Generate an AI draft for this mission" })
+    .getByRole("status");
 
   for (let attempt = 1; attempt <= maxGenerationAttempts; attempt++) {
     await generateButton.click();
     await expect(generateButton).toBeEnabled({ timeout: generationAttemptBudgetMs });
 
-    const errorRegion = page.locator('[role="status"][aria-live="polite"]').first();
-    const errorText = (await errorRegion.textContent())?.trim();
-
-    if (!errorText) return; // no error shown -> generation succeeded
+    if (await generationStatus.getByText("Draft saved for human review.", { exact: true }).isVisible()) {
+      return;
+    }
+    const errorText = (await generationStatus.locator("p.text-error").allTextContents()).join(" ").trim();
+    const failureText = errorText || "Generation finished without a saved-draft confirmation.";
     if (attempt === maxGenerationAttempts) {
       throw new Error(
-        `Draft generation failed after ${maxGenerationAttempts} attempts: ${errorText}`,
+        `Draft generation failed after ${maxGenerationAttempts} attempts: ${failureText}`,
       );
     }
-    console.warn(`Draft generation attempt ${attempt} failed transiently: ${errorText}. Retrying.`);
+    console.warn(`Draft generation attempt ${attempt} failed transiently: ${failureText}. Retrying.`);
     // Short backoff: a "high demand" 503 needs a moment to clear, not an
     // immediate hammer.
     await page.waitForTimeout(retryBackoffMs);
