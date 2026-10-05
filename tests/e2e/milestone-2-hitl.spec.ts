@@ -103,7 +103,7 @@ test("Milestone 2 HITL browser journey with a real Gemini call", async ({ page }
 
     // --- Draft 1: generate, then Approve ---
     await page
-      .getByLabel("Context for the model")
+      .getByLabel("Prompt / Context")
       .fill(
         "The team shipped the new onboarding flow this week. Signups are up 12% " +
           "but activation rate dropped slightly, likely due to a confusing email " +
@@ -126,7 +126,7 @@ test("Milestone 2 HITL browser journey with a real Gemini call", async ({ page }
 
     // --- Draft 2: generate, then Dismiss ---
     await page
-      .getByLabel("Context for the model")
+      .getByLabel("Prompt / Context")
       .fill(
         "A customer flagged that the invoice PDF export is missing the tax " +
           "breakdown line items. This affects their monthly reconciliation. " +

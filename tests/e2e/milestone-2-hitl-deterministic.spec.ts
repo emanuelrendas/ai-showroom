@@ -109,7 +109,7 @@ test("E1 — full HITL cycle against the deterministic stub provider (generate, 
 
     // --- Step 3: member submits AI draft generation request ---
     await page
-      .getByLabel("Context for the model")
+      .getByLabel("Prompt / Context")
       .fill(
         "Deterministic E2E fixture context: verifying the full generate, review, " +
           "and approve cycle against the stub provider, with no live network call.",
