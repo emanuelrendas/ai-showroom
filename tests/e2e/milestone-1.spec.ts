@@ -65,7 +65,7 @@ test("Milestone 1 browser journey", async ({ page }) => {
       page.getByRole("heading", { name: "AI Showroom E2E" }),
     ).toBeVisible();
 
-    await page.getByRole("link", { name: /AI Showroom E2E/i }).click();
+    await page.getByRole("main").getByRole("link", { name: /AI Showroom E2E/i }).click();
 
     await page.getByLabel("Mission title").fill("Build Browser Acceptance");
     await page

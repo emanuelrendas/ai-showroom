@@ -90,7 +90,7 @@ test("E1 — full HITL cycle against the deterministic stub provider (generate, 
       page.getByRole("heading", { name: "AI Showroom E2E Deterministic" }),
     ).toBeVisible();
 
-    await page.getByRole("link", { name: /AI Showroom E2E Deterministic/i }).click();
+    await page.getByRole("main").getByRole("link", { name: /AI Showroom E2E Deterministic/i }).click();
 
     await page.getByLabel("Mission title").fill(missionTitle);
     await page
