@@ -73,6 +73,7 @@ test("Milestone 2 HITL browser journey with a real Gemini call", async ({ page }
 
     await expect(page).toHaveURL(new RegExp(`/w/${workspaceSlug}$`));
 
+    await page.locator("summary").filter({ hasText: /^Create project$/ }).click();
     await page.getByLabel("Project name").fill("AI Showroom E2E HITL");
     await page
       .getByLabel("Description")

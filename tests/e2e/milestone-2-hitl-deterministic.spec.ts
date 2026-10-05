@@ -79,6 +79,7 @@ test("E1 — full HITL cycle against the deterministic stub provider (generate, 
 
     await expect(page).toHaveURL(new RegExp(`/w/${workspaceSlug}$`));
 
+    await page.locator("summary").filter({ hasText: /^Create project$/ }).click();
     await page.getByLabel("Project name").fill("AI Showroom E2E Deterministic");
     await page
       .getByLabel("Description")

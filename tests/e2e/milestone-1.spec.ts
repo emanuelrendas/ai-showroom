@@ -54,6 +54,7 @@ test("Milestone 1 browser journey", async ({ page }) => {
 
     await expect(page).toHaveURL(new RegExp(`/w/${workspaceSlug}$`));
 
+    await page.locator("summary").filter({ hasText: /^Create project$/ }).click();
     await page.getByLabel("Project name").fill("AI Showroom E2E");
     await page
       .getByLabel("Description")
