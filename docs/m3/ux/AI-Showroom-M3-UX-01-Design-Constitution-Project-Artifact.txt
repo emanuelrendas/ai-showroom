@@ -1,0 +1,946 @@
+Preflight is clean, so **UX-01 is now formally underway**. The phase plan requires us to freeze visual hierarchy, density, palette, typography, spacing, surfaces, radii, borders, elevation, iconography, shell/navigation, Workspace/Project/Mission layouts, cards/lists, forms, status language and AI visual grammar before moving forward. fileciteturn0file15L975-L1004
+
+Below is **Design Constitution Candidate V1**. It is **read-only, uncommitted, and not yet accepted**.
+
+:::writing{variant="document" id="78341" title="AI Showroom M3 — UX-01 Design Constitution Candidate V1"}
+# AI SHOWROOM — M3 UX-01 DESIGN CONSTITUTION
+
+**Milestone:** M3 — Model Router & Product Experience Foundation  
+**Phase:** UX-01 — Design Constitution  
+**Status:** CANDIDATE V1 — FOR TIAGO REVIEW  
+**Canonical scope:** `dcee3f6afc760d552e8638e562424fa8db4cf7de`  
+**Implementation branch:** `feature/milestone-3-router-product-experience`  
+**Audited starting HEAD:** `dcee3f6afc760d552e8638e562424fa8db4cf7de`  
+**Writer:** NONE  
+**Repository mutation:** NONE
+
+---
+
+# 1. Product Identity
+
+AI Showroom is not designed as a generic admin dashboard.
+
+It is a:
+
+> **Premium AI operating environment / command center**
+
+The experience must feel:
+
+**fast · calm · intelligent · premium · precise · responsive · operational**
+
+The product should communicate that the user is operating structured AI-assisted work, not chatting casually with a bot.
+
+The visual language must avoid:
+
+| Avoid | Reason |
+|---|---|
+| Generic SaaS dashboard | Dilutes product identity |
+| ChatGPT clone | AI Showroom is mission-oriented, not a chat product |
+| Crypto dashboard | Too noisy and metric-driven |
+| Gaming HUD | Undermines professional operational character |
+| Card-grid overload | Weakens hierarchy |
+| Excessive glassmorphism | Decorative rather than operational |
+| Neon/glow everywhere | Reduces visual authority |
+| Decorative AI particles | Communicates nothing |
+| Large gradient hero surfaces | Wrong density for an operating environment |
+
+---
+
+# 2. Core Design Principle
+
+## **Calm control**
+
+The user should always be able to answer four questions quickly:
+
+**Where am I?**  
+Workspace → Project → Mission.
+
+**What is happening?**  
+Current mission, AI state, review state and operational status.
+
+**What requires me?**  
+Human decisions such as Approve or Dismiss.
+
+**What happened before?**  
+Draft/review history and available activity evidence.
+
+Decoration must never outrank operational information.
+
+---
+
+# 3. Visual Hierarchy
+
+The hierarchy is frozen as:
+
+| Level | Purpose | Typical treatment |
+|---|---|---|
+| L0 | Product shell | Persistent navigation and account context |
+| L1 | Workspace / Project / Mission identity | Primary page title |
+| L2 | Major operational zone | Context, AI Workspace, Activity |
+| L3 | Functional section | Drafts, create flow, mission details |
+| L4 | Record / item | Project, mission, draft |
+| L5 | Metadata | Status, priority, timestamps, model, confidence |
+
+The page title must always dominate the surface.
+
+Status badges and metadata must never visually compete with the page title.
+
+Uppercase micro-labels may identify hierarchy but are supporting elements, not primary headings.
+
+---
+
+# 4. Density
+
+AI Showroom uses **professional medium density**.
+
+It must not become either:
+
+a sparse marketing website
+
+or
+
+a dense developer console.
+
+Target behavior:
+
+| Surface | Density |
+|---|---|
+| Navigation | Compact |
+| Page headers | Moderate breathing room |
+| Mission Workspace | Medium-high information density |
+| Forms | Moderate |
+| Lists | Compact |
+| AI drafts | Medium |
+| Metadata | Compact |
+| Mobile | Reduced density with progressive disclosure |
+
+Vertical space should be intentional.
+
+Large empty hero areas are inappropriate inside the authenticated operating environment.
+
+---
+
+# 5. Canonical Theme
+
+## M3 ships one canonical dark operating theme.
+
+Light mode is **not part of M3 Core**.
+
+This resolves the current split between manually dark application screens and light-root component tokens.
+
+All primitives and product surfaces must draw from the same dark token system.
+
+### Base palette
+
+| Token | Target |
+|---|---|
+| `canvas` | `#09090B` |
+| `surface-1` | `#111113` |
+| `surface-2` | `#18181B` |
+| `surface-3` | `#202024` |
+| `border-subtle` | `#27272A` |
+| `border-strong` | `#3F3F46` |
+| `text-primary` | `#FAFAFA` |
+| `text-secondary` | `#A1A1AA` |
+| `text-tertiary` | `#71717A` |
+| `text-disabled` | `#52525B` |
+
+Pure black is not used for major product surfaces.
+
+Pure white is used selectively for high-priority text, not as a default fill.
+
+---
+
+# 6. Accent Language
+
+M3 uses **one controlled cool accent family**.
+
+Primary accent direction:
+
+**operational indigo / cool blue**
+
+Suggested canonical starting accent:
+
+`#7C8CFF`
+
+Its purpose is to communicate:
+
+active navigation, focus, selected AI state, router/model identity and important interactive emphasis.
+
+It must not paint the entire application.
+
+The interface remains predominantly neutral.
+
+### Semantic colors
+
+| Meaning | Family |
+|---|---|
+| Success / applied / complete | Green |
+| Warning / blocked / attention | Amber |
+| Failure / destructive / low confidence | Red |
+| Informational / AI-routing state | Blue / indigo |
+| Neutral / pending / todo | Zinc |
+
+Color must never be the only carrier of meaning.
+
+Text labels remain mandatory.
+
+---
+
+# 7. Typography
+
+Primary family remains:
+
+**Geist**
+
+Technical identifiers, policy codes, model IDs and SHAs may use:
+
+**Geist Mono**
+
+### Type hierarchy
+
+| Role | Target |
+|---|---|
+| Page title | 30–32px / semibold |
+| Major zone title | 18–20px / semibold |
+| Section title | 15–16px / medium |
+| Body | 14px / regular |
+| Controls | 14px / medium |
+| Metadata | 12–13px |
+| Eyebrow / hierarchy label | 11–12px / medium / tracked |
+| Technical metadata | 12px Geist Mono |
+
+Body copy should generally remain between approximately 55–75 characters per line where practical.
+
+Long explanatory prose must not span the entire viewport.
+
+---
+
+# 8. Spacing System
+
+Use a **4px base rhythm**.
+
+Canonical spacing steps:
+
+`4 · 8 · 12 · 16 · 20 · 24 · 32 · 40 · 48 · 64`
+
+Common usage:
+
+| Relationship | Spacing |
+|---|---:|
+| Icon → label | 8px |
+| Label → field | 8px |
+| Related controls | 12px |
+| Card internal gap | 16px |
+| Section internal gap | 20–24px |
+| Between major zones | 32px |
+| Page-header separation | 32–40px |
+| Major page rhythm | 48px maximum |
+
+Arbitrary one-off spacing values should be avoided unless a prototype demonstrates a real need.
+
+---
+
+# 9. Radius
+
+Radius communicates hierarchy.
+
+| Surface | Radius |
+|---|---:|
+| Small controls / compact badges | 6–8px |
+| Buttons / inputs | 8px |
+| Standard panels/cards | 12px |
+| Drawers/modals | 14–16px |
+| Pills/status badges | Full/pill |
+
+The interface must not become excessively rounded.
+
+Large “bubble UI” styling is explicitly rejected.
+
+---
+
+# 10. Borders
+
+Borders are the main method of surface separation.
+
+Default:
+
+**1px subtle neutral border**
+
+Use stronger borders only for:
+
+focus, selected state, warning/error state or high-priority active areas.
+
+Avoid nesting five bordered cards inside each other.
+
+When hierarchy can be expressed through whitespace, typography or subtle background change, prefer those mechanisms.
+
+---
+
+# 11. Elevation
+
+AI Showroom uses restrained elevation.
+
+Normal Workspace/Project/Mission content should feel mostly planar.
+
+Elevation is reserved for:
+
+dropdowns, menus, popovers, dialogs, mobile drawers and temporarily foregrounded interactive surfaces.
+
+Cards should not each receive large floating shadows.
+
+Mission Workspace should feel like a cohesive working surface, not a pile of floating widgets.
+
+---
+
+# 12. Iconography
+
+Continue with **Lucide**.
+
+Canonical sizes:
+
+| Context | Size |
+|---|---:|
+| Inline | 14–16px |
+| Standard navigation | 16–18px |
+| Primary action | 16px |
+| Empty state | 20–24px maximum |
+
+Icons support text rather than replace it when meaning is not universally obvious.
+
+Avoid decorative icons attached to every heading.
+
+AI identity may use Sparkles selectively, but Sparkles must not become the icon for everything related to AI.
+
+---
+
+# 13. Application Shell
+
+The current permanent 260px sidebar is replaced conceptually by a responsive shell.
+
+### Desktop ≥ 1280px
+
+Sidebar target:
+
+**248–256px**
+
+Contains:
+
+AI SHOWROOM identity, Workspace identity, Overview, actual Project navigation where supported, active-route state, account area and Sign out.
+
+### Compact desktop / tablet
+
+Sidebar may collapse to an icon/rail state when appropriate.
+
+Secondary labels become available through accessible labels/tooltips.
+
+### Mobile
+
+Persistent desktop sidebar disappears.
+
+Navigation becomes a deliberate mobile drawer/sheet triggered from the page header.
+
+No horizontal page squeeze caused by retaining a 260px column.
+
+### Active navigation
+
+Only the real current route receives active treatment.
+
+The existing permanent active styling on `Overview` is prohibited.
+
+The shell must never display factual placeholders such as:
+
+`No projects yet`
+
+when projects actually exist.
+
+---
+
+# 14. Navigation Hierarchy
+
+Every Project and Mission surface must expose navigable hierarchy.
+
+Target:
+
+`Workspace / Project / Mission`
+
+The hierarchy should be visible without dominating the page.
+
+On mobile it may truncate intelligently but the parent path must remain recoverable.
+
+Browser Back must not be the product's primary hierarchy-navigation mechanism.
+
+---
+
+# 15. `/app` — Workspace Entry
+
+`/app` is the environment selector.
+
+It must support both:
+
+existing workspace selection
+
+and
+
+creating another workspace where authorization permits.
+
+The first-workspace empty state and normal multi-workspace state must not be mutually exclusive product architectures.
+
+Avoid unnecessary dashboard metrics here.
+
+Primary goal:
+
+> **Choose or establish an operating environment.**
+
+---
+
+# 16. Workspace Surface
+
+Workspace answers:
+
+> **Which projects exist inside this operating environment?**
+
+Structure:
+
+**Workspace header**
+
+then
+
+**Project space**
+
+with creation available as a secondary action rather than permanently consuming a desktop side column.
+
+Project representation should favor a strong operational list over a generic card gallery.
+
+Each Project record may present only evidence-backed data currently supported by the application, for example:
+
+name, description and status.
+
+Do not fabricate KPIs merely to fill the screen.
+
+---
+
+# 17. Project Surface
+
+Project answers:
+
+> **Which missions constitute this project's current work?**
+
+Structure:
+
+**Breadcrumb**  
+**Project header**  
+**Project description + status**  
+**Mission list**  
+**Create mission action**
+
+Mission records must make:
+
+title, status and priority
+
+scannable without requiring the user to open each Mission.
+
+The create form should not permanently dominate one-third of the Project viewport.
+
+On desktop it may open in a side panel, drawer or bounded create area.
+
+On mobile it becomes a dedicated sheet/dialog/flow.
+
+---
+
+# 18. Mission Workspace — Primary M3 Surface
+
+Mission Workspace is the center of the M3 product experience.
+
+## Desktop target
+
+```text id="rix01w"
+┌───────────────────────────────────────────────────────────────┐
+│ Workspace / Project / Mission                                │
+│ Mission title                       Priority · Status         │
+├────────────────┬──────────────────────────┬───────────────────┤
+│                │                          │                   │
+│ Mission        │ AI Workspace             │ Activity /        │
+│ Context        │                          │ Review History    │
+│                │ Task / composer          │                   │
+│ Objective      │ Router/model state       │ Draft events      │
+│ Description    │ Generation state         │ Approval state    │
+│ Metadata       │ Draft result             │ Timestamps        │
+│                │ Review controls          │                   │
+│                │                          │                   │
+└────────────────┴──────────────────────────┴───────────────────┘
+```
+
+Target proportions are approximately:
+
+**Context:** 24–27%  
+**AI Workspace:** 46–52%  
+**Activity:** 24–27%
+
+The center remains dominant.
+
+### Important constraint
+
+The Activity pane may only render data that actually exists.
+
+No fabricated “event stream” is allowed merely to make the screen look sophisticated.
+
+---
+
+# 19. Mission Responsive Architecture
+
+### Desktop
+
+Three operational zones.
+
+### Tablet
+
+AI Workspace remains primary.
+
+Context and Activity become collapsible secondary regions or drawers.
+
+### Mobile
+
+Use three deliberate modes:
+
+**Context · AI · Activity**
+
+AI opens by default because it is the primary working surface.
+
+This must behave as genuine responsive information architecture, not a desktop three-column view squeezed onto a phone.
+
+---
+
+# 20. Cards and Lists
+
+Default rule:
+
+> **Use lists for collections. Use cards for bounded objects requiring independent interaction.**
+
+Projects and Missions are primarily list-like.
+
+AI drafts justify cards because each draft has:
+
+independent status, confidence, content and human actions.
+
+Avoid converting all information into visually equal cards.
+
+Cards must not erase hierarchy.
+
+---
+
+# 21. Forms
+
+All forms use a consistent grammar:
+
+**Label**  
+**Optional helper text**  
+**Control**  
+**Validation/error**  
+**Action**
+
+Errors appear close to the relevant interaction and are announced appropriately.
+
+Required fields should be understandable before submission.
+
+Pending submission must:
+
+disable duplicate action and show truthful action state.
+
+No fake progress.
+
+### Control consistency
+
+M3 should choose one canonical implementation for select controls rather than mixing manually styled native selects and unrelated component styling without reason.
+
+Native controls remain acceptable when intentionally selected for usability/accessibility.
+
+---
+
+# 22. Buttons
+
+Hierarchy:
+
+| Level | Usage |
+|---|---|
+| Primary | One major action in a local context |
+| Secondary | Supporting action |
+| Outline | Low-emphasis action |
+| Destructive | Irreversible/destructive action only |
+| Ghost | Navigation/utility |
+
+Approve may be primary when the draft is pending review.
+
+Dismiss must remain visually distinct without incorrectly implying destructive data deletion.
+
+Two equally loud primary buttons side-by-side should generally be avoided.
+
+---
+
+# 23. Status Language
+
+Statuses must use human-readable language.
+
+Examples:
+
+`in_progress` → **In progress**
+
+`pending_review` → **Pending review**
+
+Operational status system:
+
+| State family | Treatment |
+|---|---|
+| Todo / neutral | Neutral |
+| In progress / active | Blue/indigo |
+| Pending review | Amber or neutral-attention |
+| Done / applied | Green |
+| Blocked | Amber |
+| Cancelled / dismissed | Muted |
+| Error / failed | Red |
+| Critical priority | Red accent without full destructive treatment |
+
+Status must always include text.
+
+Do not rely solely on color.
+
+Priority and lifecycle status are different concepts and should not look identical.
+
+---
+
+# 24. AI Visual Grammar
+
+AI features have a consistent identity but must remain part of AI Showroom rather than looking like an embedded chatbot.
+
+AI surfaces may use:
+
+controlled indigo accent, Sparkles/iconography, model/profile metadata and explicit operational state.
+
+They must not use:
+
+chat bubbles by default, animated AI orbs, fake neural-network imagery, glowing borders everywhere, fake typing indicators, fake reasoning or fake progress percentages.
+
+---
+
+# 25. AI Composer
+
+The composer is an operational request surface.
+
+Hierarchy:
+
+**Task**  
+**Context**  
+**Routing/model state when applicable**  
+**Generate action**
+
+The prompt textarea should visually dominate the form because it carries the actual operational context.
+
+Supporting policy/model metadata remains secondary.
+
+---
+
+# 26. Router Presentation
+
+M3's router is auditable and deterministic.
+
+The user-facing UI should communicate:
+
+**Mode:** Auto  
+**Selected model/profile:** actual selected profile  
+**Reason:** concise human-readable representation of an explicit reason code  
+**Policy:** version when useful for audit/debug surfaces
+
+Example:
+
+`Auto · Gemini 3.6 Flash`
+
+`Selected by POLICY v1 · QUALITY_PRIORITY`
+
+This is application metadata.
+
+It must never be presented as hidden AI reasoning.
+
+Because M3 Core currently authorizes one live model, a fake multi-model picker is prohibited.
+
+---
+
+# 27. Generation-State Grammar
+
+The final product may represent real generation stages such as:
+
+```text id="b0x46i"
+Context validated
+↓
+Routing request
+↓
+Model selected
+↓
+Generating
+↓
+Validating output
+↓
+Draft ready
+```
+
+However each displayed stage must correspond to a real application state.
+
+If implementation only provides:
+
+`Generating`
+
+then the interface must display only that truthful state.
+
+No simulated sophistication.
+
+---
+
+# 28. Draft Review
+
+Pending AI drafts must make three things immediately obvious:
+
+**This content was generated by AI.**
+
+**It is awaiting human review.**
+
+**It does not become authoritative until the human acts.**
+
+Primary information order:
+
+AI identity  
+Review status  
+Draft summary/content  
+Suggested actions  
+Confidence  
+Model/routing metadata  
+Approve / Dismiss
+
+Approval authority remains human.
+
+M3 visual improvements must not blur the M2 HITL boundary.
+
+---
+
+# 29. Confidence
+
+Confidence must contain:
+
+tier + numeric score
+
+when both exist.
+
+Example:
+
+**High confidence · 86%**
+
+Confidence is supporting decision information.
+
+It must not be styled as an authorization signal.
+
+High confidence does not mean “safe to auto-approve.”
+
+---
+
+# 30. Empty States
+
+Empty states are concise and operational.
+
+They answer:
+
+what is empty, why that matters and what valid action can happen next.
+
+Avoid illustrations purely for decoration.
+
+Examples:
+
+**No missions yet**  
+Create the first mission for this project.
+
+**No AI drafts yet**  
+Generate a draft when you have context ready for review.
+
+---
+
+# 31. Loading States
+
+Loading treatment depends on scope.
+
+Button-level actions use local pending states.
+
+Page/section data may use skeleton or subtle placeholder architecture where useful.
+
+Loading must not invent progress percentages.
+
+Loading visuals should preserve the approximate layout being loaded to reduce jumps.
+
+---
+
+# 32. Error States
+
+Errors communicate:
+
+what failed, what remains safe, and what the user can do next.
+
+AI/provider failure must not imply that another model was silently selected.
+
+Errors should not expose raw provider internals or secrets.
+
+Route-level errors require a recognizable AI Showroom recovery surface rather than relying indefinitely on framework defaults.
+
+---
+
+# 33. Focus and Accessibility
+
+Keyboard focus must always be visible.
+
+Focus style is part of the visual system, not an afterthought.
+
+Interactive targets should aim for:
+
+approximately **36–40px minimum on desktop**
+
+and
+
+approximately **44px on touch-oriented mobile surfaces**.
+
+Text contrast must meet accessible standards.
+
+Information cannot rely only on:
+
+color, motion, hover or position.
+
+Mobile navigation, drawers and dialogs require correct focus containment and return behavior.
+
+---
+
+# 34. Responsive Principle
+
+Responsive design means:
+
+> **preserve task priority, not desktop geometry.**
+
+Desktop structure may transform when the viewport changes.
+
+Mission Workspace is the clearest example:
+
+three zones on desktop do not mean three squeezed columns on mobile.
+
+AI remains the dominant working mode while contextual information becomes progressively disclosed.
+
+---
+
+# 35. Product Copy
+
+Copy should sound:
+
+precise, calm, operational and human.
+
+Avoid:
+
+marketing hype, AI mysticism, anthropomorphism, fake intelligence claims and unexplained technical jargon in normal user surfaces.
+
+Prefer:
+
+**Generate AI draft**
+
+over:
+
+**Ask your AI**
+
+Prefer:
+
+**Selected model**
+
+over:
+
+**The AI decided to use**
+
+Prefer:
+
+**Generation failed**
+
+over:
+
+**Something magical went wrong**
+
+---
+
+# 36. Non-Negotiable Visual Invariants
+
+M3 implementation must preserve these rules:
+
+1. One coherent dark token system.
+2. Mission Workspace is the highest-priority surface.
+3. AI Workspace dominates Mission desktop composition.
+4. Navigation truthfully reflects actual route and project state.
+5. Workspace → Project → Mission orientation remains visible.
+6. Human review is visually unmistakable.
+7. Router metadata is explicit, not mystical.
+8. One live model must not be presented as fake multi-model choice.
+9. Collections do not become unnecessary card grids.
+10. Motion does not substitute for hierarchy.
+11. Mobile reorganizes information instead of shrinking desktop.
+12. Color never carries critical meaning alone.
+13. No fake loading progress.
+14. No fake chain-of-thought.
+15. No fake streaming.
+16. No ornamental “AI magic” styling.
+17. Existing M2 HITL semantics remain visually and functionally explicit.
+
+---
+
+# 37. UX-01 Exit Candidate
+
+This constitution freezes the intended M3 direction for:
+
+| Required UX-01 dimension | State |
+|---|---|
+| Visual hierarchy | DEFINED |
+| Density | DEFINED |
+| Palette | DEFINED |
+| Typography | DEFINED |
+| Spacing | DEFINED |
+| Surfaces | DEFINED |
+| Radius | DEFINED |
+| Borders | DEFINED |
+| Elevation | DEFINED |
+| Icon use | DEFINED |
+| Sidebar | DEFINED |
+| Workspace | DEFINED |
+| Project | DEFINED |
+| Mission | DEFINED |
+| Cards/lists | DEFINED |
+| Forms | DEFINED |
+| Status language | DEFINED |
+| AI visual grammar | DEFINED |
+
+Motion timing, easing, interruption and reduced-motion mechanics are intentionally **not frozen here**.
+
+Those belong to:
+
+**UX-02 — Motion Constitution.**
+
+---
+
+# 38. Required Decision
+
+If this direction is accepted without substantive changes, record:
+
+> **DESIGN DIRECTION ACCEPTED FOR M3**
+
+Only after that decision may UX-01 be treated as accepted.
+
+Acceptance of this design direction does **not** authorize implementation, repository mutation or a Writer Slot.
+
+The next phase after acceptance is:
+
+**UX-02 — Motion Constitution.**
+:::
+
+### Current state
+
+**UX-01:** 🟡 **CANDIDATE READY FOR TIAGO DECISION**  
+**Branch:** unchanged at `dcee3f6...`  
+**Writer:** **NONE**  
+**Writes:** **0**
+
+The single decision required by the canonical plan is exactly **`DESIGN DIRECTION ACCEPTED FOR M3`**. fileciteturn0file15L975-L1004

@@ -1,0 +1,940 @@
+## UX-02 — Motion Constitution
+
+With UX-01 accepted and the branch still clean, this is now the **animation/motion freeze candidate** for M3.
+
+:::writing{variant="document" id="42817" title="AI Showroom M3 — UX-02 Motion Constitution Candidate V1"}
+# AI SHOWROOM — M3 UX-02 MOTION CONSTITUTION
+
+**Milestone:** M3 — Model Router & Product Experience Foundation  
+**Phase:** UX-02 — Motion Constitution  
+**Status:** CANDIDATE V1 — FOR TIAGO REVIEW  
+**Canonical scope:** `dcee3f6afc760d552e8638e562424fa8db4cf7de`  
+**Implementation branch:** `feature/milestone-3-router-product-experience`  
+**Starting HEAD:** `dcee3f6afc760d552e8638e562424fa8db4cf7de`  
+**UX-01:** ACCEPTED  
+**Writer Slot:** NONE  
+**Repository mutation:** NONE
+
+---
+
+# 1. Motion Principle
+
+AI Showroom motion must communicate:
+
+**state · hierarchy · causality · navigation**
+
+If an animation communicates none of those things, it should not exist.
+
+The target feeling is:
+
+**fast · calm · premium · deliberate**
+
+Motion must never make AI Showroom feel like a gaming interface, advertising site or AI toy.
+
+---
+
+# 2. Technical Default
+
+M3 should implement motion primarily with:
+
+**CSS · Tailwind · `tw-animate-css` · native browser capabilities**
+
+A new motion dependency is not the default.
+
+It should only be considered later if the isolated prototype proves the existing stack cannot deliver a required interaction cleanly and the dependency introduces no incremental spend or unwanted complexity.
+
+---
+
+# 3. Timing System
+
+Motion timing is divided into four bands.
+
+| Class | Duration | Use |
+|---|---:|---|
+| Micro | 100–140ms | hover, focus, tiny control feedback |
+| Fast | 150–180ms | badges, tabs, button/state changes |
+| Standard | 180–240ms | draft reveal, panels, navigation state |
+| Structural | 240–300ms | sidebar, drawer, substantial layout transition |
+
+**300ms is the normal upper limit.**
+
+Anything longer must have a concrete UX justification.
+
+The interface should feel responsive immediately after input.
+
+---
+
+# 4. Easing
+
+## Standard enter
+
+Use a smooth deceleration:
+
+`cubic-bezier(0.22, 1, 0.36, 1)`
+
+Purpose:
+
+fast initial response with a calm landing.
+
+## Standard exit
+
+Use:
+
+`cubic-bezier(0.4, 0, 1, 1)`
+
+Exit should generally be slightly faster than entry.
+
+## Micro interactions
+
+Use:
+
+`ease-out`
+
+or an equivalent lightweight curve.
+
+No elastic, springy or bouncing motion in the default M3 system.
+
+---
+
+# 5. Transform Rules
+
+Normal product motion should remain physically restrained.
+
+Typical maximum movement:
+
+**4–12px**
+
+Large slides across the whole viewport are reserved for real structural transitions such as mobile drawers.
+
+Scale effects should normally remain between:
+
+**0.98 → 1.00**
+
+Avoid dramatic zooming.
+
+Opacity should support a structural transition rather than being the only explanation of a meaningful state change.
+
+---
+
+# 6. Interruptibility
+
+Interactive motion must never block the user unnecessarily.
+
+If a user:
+
+changes tab, closes a drawer, navigates elsewhere or performs another valid action,
+
+the current animation should be safely interruptible.
+
+Animation completion must not be required for application correctness.
+
+Business state must drive animation.
+
+Animation must never drive business state.
+
+---
+
+# 7. Sidebar — Desktop Collapse / Expand
+
+**Trigger:** user collapses or expands navigation.
+
+**Purpose:** explain the transition between full navigation and compact rail.
+
+**Duration:** 220–260ms.
+
+**Easing:** standard enter/deceleration curve.
+
+**Behavior:**
+
+Sidebar width transitions between expanded and compact dimensions.
+
+Text labels fade during the width transition.
+
+Icons maintain stable vertical position.
+
+Main content adjusts with the shell rather than jumping after the sidebar finishes.
+
+Avoid scaling the entire sidebar.
+
+**Interruptibility:** user may reverse the action immediately.
+
+**Reduced motion:** width/layout state changes immediately; labels may use a near-instant opacity change.
+
+---
+
+# 8. Mobile Navigation Drawer
+
+**Trigger:** mobile navigation button.
+
+**Purpose:** reveal application navigation while preserving Mission content context.
+
+**Duration:** approximately 220ms open, 180ms close.
+
+**Behavior:**
+
+Drawer enters horizontally from the navigation side.
+
+Backdrop fades simultaneously.
+
+Recommended displacement is structural because this is genuinely an off-canvas surface.
+
+Background page does not scale or perform decorative parallax.
+
+**Accessibility:** focus moves into the drawer and returns to the triggering control when closed.
+
+**Reduced motion:** drawer appears/disappears without lateral travel; a brief opacity change is acceptable.
+
+---
+
+# 9. Navigation Active State
+
+**Trigger:** route changes.
+
+**Purpose:** identify current position.
+
+**Duration:** 120–160ms.
+
+Active background/border/text treatment changes subtly.
+
+Do not animate a glowing indicator across unrelated navigation items.
+
+The user should perceive:
+
+“this is now my location”
+
+rather than:
+
+“something flew through the sidebar.”
+
+**Reduced motion:** instantaneous active-state change.
+
+---
+
+# 10. Page / Route Transition
+
+M3 should avoid global cinematic page transitions.
+
+**Trigger:** Workspace → Project → Mission navigation.
+
+**Purpose:** reinforce hierarchy without delaying navigation.
+
+**Duration:** 160–200ms.
+
+**Behavior:**
+
+New primary page content may use:
+
+opacity `0 → 1`
+
+plus vertical movement approximately:
+
+`4–6px → 0`
+
+Navigation shell remains stable.
+
+Do not fade the entire application shell to black between routes.
+
+Do not delay server navigation to finish an outgoing animation.
+
+**Reduced motion:** immediate content replacement.
+
+---
+
+# 11. Breadcrumb Changes
+
+Breadcrumb motion is minimal.
+
+When the hierarchy changes, the updated breadcrumb may fade into its new state over approximately 120ms.
+
+No breadcrumb element should fly horizontally across the screen.
+
+Hierarchy comes from structure and typography first.
+
+---
+
+# 12. Mission Workspace — Desktop Zones
+
+Context, AI Workspace and Activity are structural regions.
+
+They should not continuously animate.
+
+When a region is expanded/collapsed intentionally:
+
+**Duration:** 200–240ms.
+
+**Behavior:** width or max-size transition with supporting opacity on secondary content.
+
+The **AI Workspace remains visually stable** whenever possible.
+
+Its position should not bounce when secondary metadata changes.
+
+---
+
+# 13. Mission Mobile Tabs
+
+Canonical modes:
+
+**Context · AI · Activity**
+
+**Trigger:** user selects a mode.
+
+**Purpose:** communicate a deliberate change of working context.
+
+**Duration:** 160–200ms.
+
+**Behavior:**
+
+Active tab indicator transitions quickly.
+
+Content uses subtle opacity plus approximately 6px directional movement where direction improves orientation.
+
+Avoid carousel-like dramatic sliding.
+
+The selected tab becomes usable immediately.
+
+**Reduced motion:** active state and content swap instantly.
+
+---
+
+# 14. Form Focus
+
+**Trigger:** keyboard or pointer focus.
+
+**Purpose:** expose the current interaction target.
+
+**Duration:** 100–130ms.
+
+Border/ring transitions to focused state.
+
+No scaling or floating-label motion is required unless later explicitly designed.
+
+Focus visibility must be stronger than decorative hover treatment.
+
+**Reduced motion:** same focus state immediately.
+
+---
+
+# 15. Buttons
+
+## Hover
+
+100–120ms.
+
+Minor background/border change.
+
+Optional physical displacement must not exceed approximately 1px.
+
+## Press
+
+80–100ms.
+
+A tiny compression/translation is acceptable.
+
+Avoid button bounce.
+
+## Disabled / Pending
+
+Transition quickly into stable pending state.
+
+Width should ideally remain stable to prevent layout shift.
+
+Spinners may rotate continuously because rotation directly communicates ongoing work.
+
+---
+
+# 16. AI Composer Expansion / Activation
+
+If the composer changes between compact and working states:
+
+**Trigger:** user enters/focuses AI creation context.
+
+**Purpose:** communicate that the AI surface is now the primary task area.
+
+**Duration:** 180–220ms.
+
+**Behavior:**
+
+Container change uses restrained size/opacity transition.
+
+Textarea and required controls must become interactive as soon as displayed.
+
+No floating AI orb, glow pulse or animated gradient is introduced.
+
+**Reduced motion:** immediate expanded state.
+
+---
+
+# 17. Router State
+
+Router motion communicates deterministic application state.
+
+Possible truthful sequence:
+
+`Routing → Selected profile`
+
+**Trigger:** actual router operation.
+
+**Duration:** state transition approximately 150–180ms.
+
+A routing indicator may use a restrained spinner/pulse while real routing is unresolved.
+
+Once resolved, replace it with stable selected-profile information.
+
+Example:
+
+`Auto → Gemini 3.6 Flash`
+
+The selected model/profile may receive one subtle emphasis transition.
+
+No roulette animation.
+
+No cycling fake model names.
+
+No visual implication that models are “competing.”
+
+---
+
+# 18. Selected Model State
+
+**Trigger:** router produces an actual decision.
+
+**Purpose:** make the decision visible and auditable.
+
+**Duration:** 160–200ms.
+
+Suggested behavior:
+
+selected profile container enters from opacity 0 with approximately 4px vertical translation.
+
+The information then becomes static.
+
+Do not continuously pulse the selected model.
+
+Persistent animation would imply unresolved state.
+
+---
+
+# 19. AI Generation
+
+Generation motion must tell the truth about real runtime state.
+
+If the backend exposes only:
+
+`Generating`
+
+then the UI shows only:
+
+**Generating**
+
+A restrained spinner or low-intensity progress shimmer may indicate indefinite work.
+
+It must not display:
+
+fake percentages, fake token progress, fake reasoning steps, fake model thoughts or fake streaming.
+
+If later architecture exposes real stages, those stages may be visualized individually.
+
+---
+
+# 20. Generation Stage Transition
+
+Where real discrete states exist:
+
+`Validating context → Routing → Generating → Validating output → Draft ready`
+
+each state transition should take approximately:
+
+120–180ms.
+
+Completed stages become visually stable.
+
+The UI should not intentionally delay progression to make the sequence appear impressive.
+
+If two backend states happen almost instantly, the interface may skip directly to the truthful current state.
+
+---
+
+# 21. Loading Skeletons
+
+Skeletons are appropriate for layout-preserving data loads.
+
+They should use a restrained low-contrast shimmer or opacity pulse.
+
+Cycle duration may be approximately:
+
+1.2–1.6 seconds.
+
+This is one of the few intentional continuous animations permitted because it communicates unresolved loading.
+
+**Reduced motion:** static skeleton.
+
+---
+
+# 22. Draft Reveal
+
+This is one of M3's most important animations.
+
+**Trigger:** a real validated AI draft becomes available.
+
+**Purpose:** establish causal connection:
+
+Generate → Draft produced.
+
+**Duration:** approximately 200–220ms.
+
+**Behavior:**
+
+Draft enters with:
+
+opacity `0 → 1`
+
+vertical translation approximately:
+
+`8px → 0`
+
+Optional subtle border emphasis settles quickly.
+
+No large scale, bounce, glow explosion or particle effect.
+
+After entry the card becomes completely static.
+
+**Reduced motion:** immediate draft appearance.
+
+---
+
+# 23. Draft Collection Updates
+
+When a new draft enters an existing history:
+
+existing drafts should not wildly reshuffle.
+
+The new record receives the reveal animation.
+
+Older records remain visually stable.
+
+If sort order places newest first, insertion movement should be minimal and predictable.
+
+---
+
+# 24. Approve Interaction
+
+Approval is a high-importance human action.
+
+**Trigger:** user selects Approve.
+
+The UI first enters a truthful pending state:
+
+`Approving…`
+
+Button becomes unavailable for duplicate submission.
+
+When server confirmation succeeds:
+
+pending-review state transitions to **Approved/Applied**.
+
+**Duration:** approximately 180–220ms.
+
+Suggested behavior:
+
+status treatment changes with subtle opacity/background transition.
+
+A small confirmation icon may enter.
+
+Do not launch confetti.
+
+Do not animate the entire card green.
+
+The motion means:
+
+**the human decision has been successfully recorded.**
+
+**Reduced motion:** immediate final status change.
+
+---
+
+# 25. Dismiss Interaction
+
+Dismiss must feel intentional but less celebratory.
+
+**Trigger:** Dismiss.
+
+Pending state:
+
+`Dismissing…`
+
+After successful confirmation:
+
+card transitions into the dismissed state.
+
+If dismissed items remain in Activity/history, the card should not simply vanish without explanation.
+
+Possible treatment:
+
+content emphasis decreases and status becomes **Dismissed**.
+
+**Duration:** approximately 160–200ms.
+
+If an active-review copy is removed from the primary working region, it may fade and translate approximately 4–6px before being represented in history.
+
+**Reduced motion:** immediate state update.
+
+---
+
+# 26. Error Entry
+
+**Trigger:** confirmed application/provider/action error.
+
+**Purpose:** direct attention to a state requiring user awareness.
+
+**Duration:** 140–180ms.
+
+**Behavior:**
+
+error region appears through opacity and slight vertical movement.
+
+Do not shake the entire form.
+
+A tiny control-specific shake should not be part of the default system because it is visually aggressive and can create unnecessary accessibility issues.
+
+Error remains static once displayed.
+
+---
+
+# 27. Error Recovery
+
+When the condition is resolved:
+
+error region exits faster than it entered, approximately:
+
+120–150ms.
+
+Layout collapse should be controlled to avoid severe content jumping.
+
+If space preservation creates worse UX, the layout may reflow normally.
+
+Correctness takes priority over animation smoothness.
+
+---
+
+# 28. Empty → Populated State
+
+Example:
+
+`No AI drafts yet` → first generated draft.
+
+**Purpose:** make the causal transformation understandable.
+
+Empty-state copy fades out over approximately 120ms.
+
+Real content enters using its normal record-entry animation.
+
+Do not crossfade fake data.
+
+---
+
+# 29. Modal / Dialog
+
+**Open:** 180–220ms.
+
+Backdrop:
+
+opacity `0 → target`.
+
+Dialog:
+
+opacity `0 → 1`
+
+plus scale approximately:
+
+`0.98 → 1`
+
+and optional 4px vertical movement.
+
+**Close:** 150–180ms.
+
+Exit is slightly faster than entry.
+
+**Reduced motion:** dialog appears and disappears without scaling or translation.
+
+---
+
+# 30. Side Panel / Sheet
+
+Used for context, creation or responsive secondary tasks.
+
+**Duration:** 200–240ms opening, 170–200ms closing.
+
+Panel slides from the structural edge.
+
+Backdrop fades.
+
+The underlying application should not zoom backwards or perform decorative depth transforms.
+
+**Reduced motion:** static appearance.
+
+---
+
+# 31. Dropdown / Select / Popover
+
+Duration:
+
+100–150ms.
+
+Recommended:
+
+small opacity and scale transition.
+
+Existing `tw-animate-css` patterns are sufficient unless prototype evidence proves otherwise.
+
+These interactions must feel immediate.
+
+---
+
+# 32. Tooltip
+
+Tooltip should not appear instantly on incidental pointer movement.
+
+A modest hover delay may be used.
+
+Actual tooltip entrance:
+
+approximately 100ms opacity transition.
+
+No bounce.
+
+Keyboard focus must expose equivalent information.
+
+---
+
+# 33. Status Badge Changes
+
+When status changes:
+
+background, border and text transition over approximately 120–160ms.
+
+No pulsing except for a genuinely temporary unresolved state where pulse has explicit meaning.
+
+Persistent statuses are static.
+
+---
+
+# 34. Confidence Changes
+
+Confidence presentation is normally static because confidence belongs to a completed inference record.
+
+Do not animate a number counting upward from 0%.
+
+That would falsely imply live measurement.
+
+When a new draft appears, the confidence value appears as part of the draft reveal.
+
+---
+
+# 35. Activity / Review History
+
+New genuine history records may enter with:
+
+opacity `0 → 1`
+
+translation approximately `4px → 0`
+
+over 160–180ms.
+
+Existing history remains static.
+
+There is no continuously animated timeline.
+
+---
+
+# 36. Hover Language
+
+Hover must indicate interactability, not provide entertainment.
+
+Permitted changes include:
+
+subtle background change, border emphasis, text emphasis and extremely small translation.
+
+Hover cannot contain essential information unavailable to keyboard/touch users.
+
+---
+
+# 37. Continuous Animation Budget
+
+Continuous animation is exceptional.
+
+Permitted examples:
+
+real loading spinner, truthful skeleton shimmer, unresolved operation indicator.
+
+Not permitted as default ambient decoration:
+
+pulsing AI logo, animated gradient background, moving particles, breathing cards, glowing model badge, rotating decorative icons, constantly moving borders.
+
+When operational state ends, continuous animation ends.
+
+---
+
+# 38. Reduced Motion Constitution
+
+AI Showroom must respect:
+
+`prefers-reduced-motion: reduce`
+
+Reduced-motion mode does **not** remove state communication.
+
+It removes unnecessary spatial travel and animated transformation.
+
+| Normal | Reduced motion |
+|---|---|
+| Sidebar width transition | Immediate state |
+| Drawer slide | Immediate/fade-only |
+| Route translate + fade | Immediate content |
+| Tab slide | Immediate swap |
+| Draft translate + fade | Immediate reveal |
+| Dialog scale | Immediate/fade-only |
+| Skeleton shimmer | Static skeleton |
+| Status transition | Immediate style change |
+| Loading spinner | May remain if needed to indicate indefinite activity |
+
+No information may disappear when motion is disabled.
+
+---
+
+# 39. Motion and Accessibility
+
+Animation must never:
+
+trap focus, move focus unexpectedly, prevent keyboard interaction, hide important text before animation finishes, cause controls to move away from the pointer during interaction, communicate critical information only through movement or repeatedly flash.
+
+No animation may approach rapid flashing patterns.
+
+Focus state always outranks hover animation.
+
+---
+
+# 40. Performance
+
+Prefer animating:
+
+**transform** and **opacity**
+
+when possible.
+
+Avoid animating expensive properties over large application areas unless the actual layout transition requires them.
+
+Animations must not compromise input responsiveness.
+
+A visually sophisticated transition that causes noticeable lag fails the M3 design goal.
+
+---
+
+# 41. Truthfulness Rules
+
+These rules are absolute for M3:
+
+| Prohibited representation | Reason |
+|---|---|
+| Fake progress percentage | Not evidence-backed |
+| Fake chain-of-thought | Not appropriate product state |
+| Fake streaming | Misrepresents provider behavior |
+| Fake model competition | Router is deterministic |
+| Deliberately slowed AI stages | Misrepresents latency |
+| Animated confidence count-up | Misrepresents measurement |
+| Fake activity history | Violates evidence-before-authority |
+| “Thinking” animation implying hidden reasoning | Misleading |
+
+Motion represents observable application state only.
+
+---
+
+# 42. Canonical Motion Matrix
+
+| Surface | Duration | Primary behavior |
+|---|---:|---|
+| Hover/focus | 100–130ms | color/border |
+| Button state | 100–150ms | style/state |
+| Navigation active | 120–160ms | style |
+| Error | 140–180ms | fade + 4px |
+| Tabs | 160–200ms | fade + restrained translation |
+| Router result | 160–200ms | fade + 4px |
+| Activity item | 160–180ms | fade + 4px |
+| Route content | 160–200ms | fade + 4–6px |
+| Approve/Dismiss | 180–220ms | semantic state transition |
+| Draft reveal | 200–220ms | fade + 8px |
+| Dialog | 180–220ms | fade + scale |
+| Drawer | 200–240ms | structural slide |
+| Sidebar | 220–260ms | structural resize |
+| Skeleton | 1.2–1.6s loop | truthful loading only |
+
+---
+
+# 43. UX-02 Acceptance Matrix
+
+| Required motion | Defined |
+|---|---|
+| Sidebar | YES |
+| Navigation | YES |
+| Route/page transition | YES |
+| Tabs | YES |
+| Composer | YES |
+| Router state | YES |
+| Generation state | YES |
+| Selected-model state | YES |
+| Draft reveal | YES |
+| Approve | YES |
+| Dismiss | YES |
+| Error | YES |
+| Modal | YES |
+| Drawer | YES |
+| Loading state | YES |
+| Empty state | YES |
+| Reduced-motion equivalent | YES |
+| Interruptibility | YES |
+| Timing | YES |
+| Easing | YES |
+
+The implementation instruction is no longer merely:
+
+“make it smooth.”
+
+Each material motion now has a defined purpose and bounded behavior.
+
+---
+
+# 44. UX-02 Exit Candidate
+
+**UX-02 MOTION CONSTITUTION: CANDIDATE COMPLETE**
+
+No implementation is authorized by this document.
+
+No animation dependency is authorized by this document.
+
+No production behavior changes.
+
+No deploy.
+
+No HOLD change.
+
+No CANARY change.
+
+No M3-X1 activation.
+
+M2 HITL remains binding.
+
+Writer Slot remains:
+
+**NONE**
+
+Upon Tiago acceptance, the next phase is:
+
+**UX-03 — Isolated Prototype**
+
+The prototype must prove the accepted design and motion constitutions without production data/backend authority.
+:::
+
+So now we have both halves of the product experience defined:
+
+**UX-01 = how AI Showroom looks and organizes information**  
+**UX-02 = exactly how AI Showroom moves and responds**
+
+If this animation system matches what you want, the clean acceptance record would be **`MOTION CONSTITUTION ACCEPTED FOR M3`**.
