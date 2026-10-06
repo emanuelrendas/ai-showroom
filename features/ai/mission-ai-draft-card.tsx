@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { SparklesIcon } from "lucide-react";
 import {
   approveMissionAiDraftAction,
@@ -9,6 +9,7 @@ import {
 import type { MissionAiDraft } from "@/features/ai/types";
 import {
   formatConfidenceScore,
+  formatDraftTimestamp,
   getConfidenceTierPresentation,
   getDraftStatusPresentation,
 } from "@/features/ai/draft-presentation";
@@ -40,97 +41,93 @@ export function MissionAiDraftCard({
     null,
   );
   const [error, setError] = useState<string | null>(null);
+  const [confirmedStatus, setConfirmedStatus] = useState<"applied" | "dismissed" | null>(null);
+  const actionInFlight = useRef(false);
 
-  const statusPresentation = getDraftStatusPresentation(draft.status);
+  const status = confirmedStatus ?? draft.status;
+  const statusPresentation = getDraftStatusPresentation(status);
   const confidencePresentation = getConfidenceTierPresentation(draft.confidence_tier);
-  const isPendingReview = draft.status === "pending_review";
+  const isPendingReview = status === "pending_review";
 
-  function handleApprove() {
+  function handleReview(action: "approve" | "dismiss") {
+    if (actionInFlight.current || !isPendingReview) return;
+    actionInFlight.current = true;
     setError(null);
-    setPendingAction("approve");
+    setPendingAction(action);
     startTransition(async () => {
-      const result = await approveMissionAiDraftAction(
-        workspaceSlug,
-        projectId,
-        missionId,
-        draft.id,
-      );
-      setPendingAction(null);
-      if (result.error) setError(result.error);
-    });
-  }
-
-  function handleDismiss() {
-    setError(null);
-    setPendingAction("dismiss");
-    startTransition(async () => {
-      const result = await dismissMissionAiDraftAction(
-        workspaceSlug,
-        projectId,
-        missionId,
-        draft.id,
-      );
-      setPendingAction(null);
-      if (result.error) setError(result.error);
+      try {
+        const result = action === "approve"
+          ? await approveMissionAiDraftAction(workspaceSlug, projectId, missionId, draft.id)
+          : await dismissMissionAiDraftAction(workspaceSlug, projectId, missionId, draft.id);
+        if (result.error) setError(result.error);
+        else setConfirmedStatus(action === "approve" ? "applied" : "dismissed");
+      } catch (failure) {
+        setError(failure instanceof Error ? failure.message : "Unable to complete review action.");
+      } finally {
+        actionInFlight.current = false;
+        setPendingAction(null);
+      }
     });
   }
 
   return (
-    <Card aria-label={`AI draft, ${statusPresentation.label.toLowerCase()}`}>
-      <CardHeader>
+    <Card aria-label={`AI draft, ${statusPresentation.label.toLowerCase()}`} aria-busy={!!pendingAction} className="gap-5 border border-border bg-surface-raised ring-0">
+      <CardHeader className="gap-3">
         <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="secondary">
+          <Badge variant="secondary" className="bg-primary/10 text-primary">
             <SparklesIcon aria-hidden="true" />
             AI-generated
           </Badge>
-          <Badge variant={statusPresentation.variant}>
+          <Badge variant={statusPresentation.variant} role="status" aria-live="polite" className="motion-safe:animate-in motion-safe:fade-in motion-safe:duration-[200ms]">
             {statusPresentation.label}
           </Badge>
-          <Badge variant={confidencePresentation.variant}>
-            {confidencePresentation.label} · {formatConfidenceScore(draft.confidence_score)}
-          </Badge>
         </div>
-        <CardTitle className="mt-2">{draft.summary}</CardTitle>
+        <CardTitle className="text-lg leading-7 text-foreground">{draft.summary}</CardTitle>
+        <p className="text-xs text-text-tertiary">Created {formatDraftTimestamp(draft.created_at)}</p>
       </CardHeader>
 
-      <CardContent>
-        <p className="text-xs uppercase tracking-[0.2em] text-neutral-500">
+      <CardContent className="space-y-4">
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-secondary">
           Suggested actions
         </p>
-        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-neutral-300">
+        <ul className="list-disc space-y-2 pl-5 text-sm leading-6 text-foreground">
           {draft.suggested_actions.map((action, index) => (
             <li key={index}>{action}</li>
           ))}
         </ul>
+        {draft.suggested_actions.length === 0 && <p className="text-sm text-text-secondary">No suggested actions.</p>}
 
-        {draft.status === "applied" && (
-          <p className="mt-4 text-xs text-neutral-500">
-            {/* Fixed locale, not the runtime's default: toLocaleString() with
-                no locale argument renders differently on the server (Node's
-                default locale) than in the browser, which is a real
-                hydration mismatch caught during E2E testing (22 Sep 2026). */}
-            Approved{" "}
-            {draft.approved_at ? new Date(draft.approved_at).toLocaleString("en-GB") : ""}
+        <div className="border-t border-border pt-4 text-xs text-text-secondary">
+          <Badge variant={confidencePresentation.variant} className="mr-2 align-middle">
+            {confidencePresentation.label} · {formatConfidenceScore(draft.confidence_score)}
+          </Badge>
+          Confidence supports review; it does not approve this draft.
+        </div>
+
+        {status === "applied" && draft.approved_at && (
+          <p className="text-xs text-text-secondary">
+            Approved {formatDraftTimestamp(draft.approved_at)}
           </p>
         )}
       </CardContent>
 
       {isPendingReview && (
         <CardFooter className="flex-col items-start gap-3">
-          <div aria-live="polite" role="status" className="min-h-5 text-sm text-red-400">
-            {error}
+          <div aria-live="polite" role="status" className={`min-h-5 text-sm ${error ? "text-error" : "text-text-secondary"}`}>
+            {error || (pendingAction === "approve" ? "Approving…" : pendingAction === "dismiss" ? "Dismissing…" : "Pending human review.")}
           </div>
           <div className="flex gap-2">
-            <Button type="button" onClick={handleApprove} disabled={isPending}>
-              {isPending && pendingAction === "approve" ? "Approving…" : "Approve"}
+            <Button type="button" onClick={() => handleReview("approve")} disabled={isPending || !!pendingAction} className="motion-reduce:active:translate-y-0">
+              {pendingAction === "approve" ? "Approving…" : "Approve"}
             </Button>
             <Button
               type="button"
               variant="outline"
-              onClick={handleDismiss}
-              disabled={isPending}
+              className="motion-reduce:active:translate-y-0"
+              onClick={() => handleReview("dismiss")}
+              disabled={isPending || !!pendingAction}
             >
-              {isPending && pendingAction === "dismiss" ? "Dismissing…" : "Dismiss"}
+              {pendingAction === "dismiss" ? "Dismissing…" : "Dismiss"}
             </Button>
           </div>
         </CardFooter>

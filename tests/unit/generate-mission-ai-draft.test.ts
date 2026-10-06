@@ -38,6 +38,10 @@ const successLog: InferenceLogRecord = {
   latency_ms: 842,
   cost_usd_micros: 5_000,
   failure_reason: null,
+  router_policy_version: null,
+  selected_profile_id: null,
+  route_reason_code: null,
+  override_source: null,
 };
 
 function createDraftWriter(): MissionAiDraftWriter & {

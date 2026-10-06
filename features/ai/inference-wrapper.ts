@@ -1,4 +1,5 @@
 import type { z } from "zod";
+import type { RouteMetadata } from "./router/types";
 import {
   SingleModelInputSchema,
   SingleModelOutputSchema,
@@ -62,6 +63,10 @@ export interface InferenceLogRecord {
   latency_ms: number;
   cost_usd_micros: number | null;
   failure_reason: string | null;
+  router_policy_version: RouteMetadata["router_policy_version"] | null;
+  selected_profile_id: string | null;
+  route_reason_code: RouteMetadata["route_reason_code"] | null;
+  override_source: RouteMetadata["override_source"] | null;
 }
 
 export interface InferenceLogWriter {
@@ -124,6 +129,7 @@ export interface InferenceExecutionWrapperDeps {
   costCeilingUsdMicros?: number;
   timeoutMs?: number;
   now?: () => number;
+  routeMetadata?: RouteMetadata;
 }
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
@@ -157,6 +163,7 @@ export class InferenceExecutionWrapper {
   private readonly costCeilingUsdMicros: number;
   private readonly timeoutMs: number;
   private readonly now: () => number;
+  private readonly routeMetadata: RouteMetadata | null;
 
   constructor(deps: InferenceExecutionWrapperDeps) {
     this.provider = deps.provider;
@@ -167,6 +174,7 @@ export class InferenceExecutionWrapper {
       deps.costCeilingUsdMicros ?? DEFAULT_COST_CEILING_USD_MICROS;
     this.timeoutMs = deps.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.now = deps.now ?? (() => performance.now());
+    this.routeMetadata = deps.routeMetadata ? Object.freeze({ ...deps.routeMetadata }) : null;
   }
 
   async execute(
@@ -319,6 +327,10 @@ export class InferenceExecutionWrapper {
       latency_ms: params.latencyMs,
       cost_usd_micros: params.costUsdMicros ?? null,
       failure_reason: params.failureReason,
+      router_policy_version: this.routeMetadata?.router_policy_version ?? null,
+      selected_profile_id: this.routeMetadata?.selected_profile_id ?? null,
+      route_reason_code: this.routeMetadata?.route_reason_code ?? null,
+      override_source: this.routeMetadata?.override_source ?? null,
     };
   }
 }

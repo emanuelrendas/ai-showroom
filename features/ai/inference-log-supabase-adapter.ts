@@ -25,6 +25,10 @@ export class SupabaseInferenceLogWriter implements InferenceLogWriter {
       latency_ms: record.latency_ms,
       cost_usd_micros: record.cost_usd_micros,
       failure_reason: record.failure_reason,
+      router_policy_version: record.router_policy_version,
+      selected_profile_id: record.selected_profile_id,
+      route_reason_code: record.route_reason_code,
+      override_source: record.override_source,
     });
 
     if (error) {

@@ -10,6 +10,11 @@ const generationAttemptBudgetMs = 30_000;
 const retryBackoffMs = 5_000;
 const setupAndUiBudgetMs = 45_000;
 
+test.skip(
+  () => process.env.AI_SHOWROOM_DETERMINISTIC_TEST_PROVIDER === "1",
+  "Live Gemini smoke is outside the deterministic automated acceptance run.",
+);
+
 if (!supabaseUrl || !secretKey) {
   throw new Error("Missing E2E Supabase environment variables.");
 }
@@ -68,6 +73,7 @@ test("Milestone 2 HITL browser journey with a real Gemini call", async ({ page }
 
     await expect(page).toHaveURL(new RegExp(`/w/${workspaceSlug}$`));
 
+    await page.locator("summary").filter({ hasText: /^Create project$/ }).click();
     await page.getByLabel("Project name").fill("AI Showroom E2E HITL");
     await page
       .getByLabel("Description")
@@ -78,8 +84,9 @@ test("Milestone 2 HITL browser journey with a real Gemini call", async ({ page }
       page.getByRole("heading", { name: "AI Showroom E2E HITL" }),
     ).toBeVisible();
 
-    await page.getByRole("link", { name: /AI Showroom E2E HITL/i }).click();
+    await page.getByRole("main").getByRole("link", { name: /AI Showroom E2E HITL/i }).click();
 
+    await page.getByRole("main").locator("summary").filter({ hasText: /^Create mission$/ }).click();
     await page.getByLabel("Mission title").fill("Verify Real Gemini HITL Cycle");
     await page
       .getByLabel("Description")
@@ -96,7 +103,7 @@ test("Milestone 2 HITL browser journey with a real Gemini call", async ({ page }
 
     // --- Draft 1: generate, then Approve ---
     await page
-      .getByLabel("Context for the model")
+      .getByLabel("Prompt / Context")
       .fill(
         "The team shipped the new onboarding flow this week. Signups are up 12% " +
           "but activation rate dropped slightly, likely due to a confusing email " +
@@ -119,7 +126,7 @@ test("Milestone 2 HITL browser journey with a real Gemini call", async ({ page }
 
     // --- Draft 2: generate, then Dismiss ---
     await page
-      .getByLabel("Context for the model")
+      .getByLabel("Prompt / Context")
       .fill(
         "A customer flagged that the invoice PDF export is missing the tax " +
           "breakdown line items. This affects their monthly reconciliation. " +
@@ -183,21 +190,25 @@ test("Milestone 2 HITL browser journey with a real Gemini call", async ({ page }
 
 async function generateDraftWithRetry(page: import("@playwright/test").Page) {
   const generateButton = page.getByRole("button", { name: /generate ai draft/i });
+  const generationStatus = page
+    .getByRole("form", { name: "Generate an AI draft for this mission" })
+    .getByRole("status");
 
   for (let attempt = 1; attempt <= maxGenerationAttempts; attempt++) {
     await generateButton.click();
     await expect(generateButton).toBeEnabled({ timeout: generationAttemptBudgetMs });
 
-    const errorRegion = page.locator('[role="status"][aria-live="polite"]').first();
-    const errorText = (await errorRegion.textContent())?.trim();
-
-    if (!errorText) return; // no error shown -> generation succeeded
+    if (await generationStatus.getByText("Draft saved for human review.", { exact: true }).isVisible()) {
+      return;
+    }
+    const errorText = (await generationStatus.locator("p.text-error").allTextContents()).join(" ").trim();
+    const failureText = errorText || "Generation finished without a saved-draft confirmation.";
     if (attempt === maxGenerationAttempts) {
       throw new Error(
-        `Draft generation failed after ${maxGenerationAttempts} attempts: ${errorText}`,
+        `Draft generation failed after ${maxGenerationAttempts} attempts: ${failureText}`,
       );
     }
-    console.warn(`Draft generation attempt ${attempt} failed transiently: ${errorText}. Retrying.`);
+    console.warn(`Draft generation attempt ${attempt} failed transiently: ${failureText}. Retrying.`);
     // Short backoff: a "high demand" 503 needs a moment to clear, not an
     // immediate hammer.
     await page.waitForTimeout(retryBackoffMs);

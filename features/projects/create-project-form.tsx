@@ -44,7 +44,7 @@ export function CreateProjectForm({ workspaceSlug }: CreateProjectFormProps) {
         />
       </div>
 
-      <div aria-live="polite" className="min-h-5 text-sm text-red-400">
+      <div aria-live="polite" className="min-h-5 text-sm text-error">
         {state.error}
       </div>
 

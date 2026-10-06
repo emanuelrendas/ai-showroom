@@ -79,6 +79,7 @@ test("E1 — full HITL cycle against the deterministic stub provider (generate, 
 
     await expect(page).toHaveURL(new RegExp(`/w/${workspaceSlug}$`));
 
+    await page.locator("summary").filter({ hasText: /^Create project$/ }).click();
     await page.getByLabel("Project name").fill("AI Showroom E2E Deterministic");
     await page
       .getByLabel("Description")
@@ -89,8 +90,9 @@ test("E1 — full HITL cycle against the deterministic stub provider (generate, 
       page.getByRole("heading", { name: "AI Showroom E2E Deterministic" }),
     ).toBeVisible();
 
-    await page.getByRole("link", { name: /AI Showroom E2E Deterministic/i }).click();
+    await page.getByRole("main").getByRole("link", { name: /AI Showroom E2E Deterministic/i }).click();
 
+    await page.getByRole("main").locator("summary").filter({ hasText: /^Create mission$/ }).click();
     await page.getByLabel("Mission title").fill(missionTitle);
     await page
       .getByLabel("Description")
@@ -107,7 +109,7 @@ test("E1 — full HITL cycle against the deterministic stub provider (generate, 
 
     // --- Step 3: member submits AI draft generation request ---
     await page
-      .getByLabel("Context for the model")
+      .getByLabel("Prompt / Context")
       .fill(
         "Deterministic E2E fixture context: verifying the full generate, review, " +
           "and approve cycle against the stub provider, with no live network call.",
@@ -119,11 +121,11 @@ test("E1 — full HITL cycle against the deterministic stub provider (generate, 
     // covers CI/local machine variance in the Next.js server action round trip.
     await expect(generateButton).toBeEnabled({ timeout: 15_000 });
 
-    const errorRegion = page.locator('[role="status"][aria-live="polite"]').first();
-    const errorText = (await errorRegion.textContent())?.trim();
-    if (errorText) {
-      throw new Error(`Deterministic draft generation reported an error: ${errorText}`);
-    }
+    await expect(
+      page.getByRole("form", { name: "Generate an AI draft for this mission" })
+        .getByRole("status")
+        .getByText("Draft saved for human review.", { exact: true }),
+    ).toBeVisible();
 
     // --- Steps 4-7: stub returns valid output, wrapper accepts it, telemetry
     // lands in inference_logs, mission_ai_drafts row created pending_review ---

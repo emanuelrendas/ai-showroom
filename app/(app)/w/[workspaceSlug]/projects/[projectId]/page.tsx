@@ -24,88 +24,82 @@ export default async function ProjectPage({
 
   return (
     <div className="max-w-6xl">
-      <div className="border-b border-neutral-800 pb-7">
-        <div className="flex items-start justify-between gap-6">
+      <header className="border-b border-border pb-8">
+        <nav aria-label="Breadcrumb" className="mb-6 flex flex-wrap items-center gap-2 text-xs text-text-tertiary">
+          <Link href={`/w/${workspace.slug}`} className="rounded-sm text-text-secondary hover:text-primary focus-visible:outline-2 focus-visible:outline-ring">{workspace.name}</Link>
+          <span aria-hidden="true">/</span>
+          <span aria-current="page">{project.name}</span>
+        </nav>
+        <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <p className="text-xs uppercase tracking-[0.2em] text-neutral-500">
-              Project
-            </p>
-            <h2 className="mt-3 text-3xl font-semibold tracking-tight">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">Project</p>
+            <h1 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">
               {project.name}
-            </h2>
+            </h1>
           </div>
-          <Badge variant="outline">{project.status}</Badge>
+          <Badge variant="outline" className={project.status === "active" ? "border-success/40 text-success" : "text-text-secondary"}>{project.status}</Badge>
         </div>
 
-        <p className="mt-4 max-w-3xl text-sm leading-6 text-neutral-400">
+        <p className="mt-4 max-w-3xl text-sm leading-6 text-text-secondary">
           {project.description || "No description provided."}
         </p>
-      </div>
+      </header>
 
-      <div className="mt-8 grid gap-8 lg:grid-cols-[1fr_340px]">
-        <section>
-          <div className="mb-5 flex items-end justify-between">
+      <div className="mt-8">
+        <section aria-labelledby="missions-heading">
+          <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
             <div>
-              <p className="text-xs uppercase tracking-[0.2em] text-neutral-500">
-                Missions
-              </p>
-              <h3 className="mt-2 text-xl font-medium">Operational work</h3>
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-text-tertiary">Missions</p>
+              <h2 id="missions-heading" className="mt-2 text-xl font-medium">Operational work</h2>
             </div>
-            <span className="text-sm text-neutral-500">
+            <span className="text-sm text-text-tertiary">
               {missions.length} total
             </span>
           </div>
 
           {missions.length > 0 ? (
-            <div className="divide-y divide-neutral-800 border-y border-neutral-800">
+            <div className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-surface">
               {missions.map((mission) => (
                 <Link
                   key={mission.id}
                   href={`/w/${workspace.slug}/projects/${project.id}/missions/${mission.id}`}
-                  className="block py-5 transition hover:bg-neutral-900/50"
+                  className="block px-5 py-5 transition-colors duration-[var(--motion-nav)] hover:bg-surface-raised focus-visible:outline-2 focus-visible:outline-ring"
                 >
-                  <div className="flex items-start justify-between gap-4">
+                  <div className="flex flex-wrap items-start justify-between gap-4">
                     <div className="min-w-0">
-                      <h4 className="font-medium text-neutral-100">
+                      <h3 className="font-medium text-foreground">
                         {mission.title}
-                      </h4>
-                      <p className="mt-2 text-sm leading-6 text-neutral-500">
+                      </h3>
+                      <p className="mt-2 line-clamp-2 text-sm leading-6 text-text-secondary">
                         {mission.description || "No description provided."}
                       </p>
                     </div>
 
-                    <div className="flex shrink-0 gap-2">
-                      <Badge variant="outline">{mission.priority}</Badge>
-                      <Badge variant="outline">{mission.status}</Badge>
+                    <div className="flex shrink-0 flex-wrap gap-2">
+                      <Badge variant="outline" className={mission.priority === "critical" || mission.priority === "high" ? "border-warning/40 text-warning" : "text-text-secondary"}>Priority: {mission.priority}</Badge>
+                      <Badge variant="outline" className={mission.status === "blocked" ? "border-error/40 text-error" : mission.status === "done" ? "border-success/40 text-success" : mission.status === "in_progress" ? "border-primary/40 text-primary" : "text-text-secondary"}>Status: {mission.status.replaceAll("_", " ")}</Badge>
                     </div>
                   </div>
                 </Link>
               ))}
             </div>
           ) : (
-            <div className="border-y border-neutral-800 py-10">
-              <p className="font-medium text-neutral-300">No missions yet</p>
-              <p className="mt-2 text-sm text-neutral-500">
+            <div className="rounded-xl border border-dashed border-border bg-surface px-6 py-12">
+              <p className="font-medium text-foreground">No missions yet</p>
+              <p className="mt-2 text-sm text-text-secondary">
                 Create the first mission to begin operational work inside this project.
               </p>
             </div>
           )}
         </section>
 
-        <aside className="border-l border-neutral-800 pl-8">
-          <p className="text-xs uppercase tracking-[0.2em] text-neutral-500">
-            New Mission
-          </p>
-          <h3 className="mt-2 text-lg font-medium">Create mission</h3>
-          <p className="mt-2 mb-6 text-sm leading-6 text-neutral-500">
-            Missions are the executable units of work inside a project.
-          </p>
-
-          <CreateMissionForm
-            workspaceSlug={workspace.slug}
-            projectId={project.id}
-          />
-        </aside>
+        <details className="mt-6 rounded-xl border border-border bg-surface p-5">
+          <summary className="cursor-pointer rounded-md text-sm font-medium text-primary marker:text-primary focus-visible:outline-2 focus-visible:outline-ring">Create mission</summary>
+          <div className="mt-5 max-w-xl border-t border-border pt-5">
+            <p className="mb-5 text-sm text-text-secondary">Missions are the executable units of work inside a project.</p>
+            <CreateMissionForm workspaceSlug={workspace.slug} projectId={project.id} />
+          </div>
+        </details>
       </div>
     </div>
   );

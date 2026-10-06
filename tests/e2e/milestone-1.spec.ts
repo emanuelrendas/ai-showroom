@@ -54,6 +54,7 @@ test("Milestone 1 browser journey", async ({ page }) => {
 
     await expect(page).toHaveURL(new RegExp(`/w/${workspaceSlug}$`));
 
+    await page.locator("summary").filter({ hasText: /^Create project$/ }).click();
     await page.getByLabel("Project name").fill("AI Showroom E2E");
     await page
       .getByLabel("Description")
@@ -64,8 +65,9 @@ test("Milestone 1 browser journey", async ({ page }) => {
       page.getByRole("heading", { name: "AI Showroom E2E" }),
     ).toBeVisible();
 
-    await page.getByRole("link", { name: /AI Showroom E2E/i }).click();
+    await page.getByRole("main").getByRole("link", { name: /AI Showroom E2E/i }).click();
 
+    await page.getByRole("main").locator("summary").filter({ hasText: /^Create mission$/ }).click();
     await page.getByLabel("Mission title").fill("Build Browser Acceptance");
     await page
       .getByLabel("Description")
