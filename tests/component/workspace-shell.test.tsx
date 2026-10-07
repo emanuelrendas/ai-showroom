@@ -100,3 +100,38 @@ test("the drawer traps keyboard focus while open", async () => {
   await user.keyboard("{Tab}");
   expect(document.activeElement).toBe(first);
 });
+
+test("collapse keeps navigation labels mounted and reverses immediately", async () => {
+  const user = userEvent.setup();
+  renderShell();
+  const navigation = screen.getByRole("navigation", { name: "Workspace navigation" });
+  const project = within(navigation).getByRole("link", { name: "Northstar" });
+  const label = within(project).getByText("Northstar");
+  await user.click(screen.getByRole("button", { name: "Collapse navigation" }));
+  expect(label.className).not.toContain("sr-only");
+  expect(project.contains(label)).toBe(true);
+  await user.click(screen.getByRole("button", { name: "Expand navigation" }));
+  expect(within(project).getByText("Northstar")).toBe(label);
+});
+
+test("drawer isolates background, locks scrolling, and restores both on dismissal", async () => {
+  const user = userEvent.setup();
+  renderShell();
+  const trigger = screen.getByRole("button", { name: "Open navigation" });
+  const input = screen.getByRole("textbox");
+  await user.click(trigger);
+  expect(input.closest("[inert]")).not.toBeNull();
+  expect(document.body.style.overflow).toBe("hidden");
+  await user.click(screen.getByRole("button", { name: "Close navigation backdrop" }));
+  expect(input.closest("[inert]")).toBeNull();
+  expect(document.body.style.overflow).toBe("");
+  expect(document.activeElement).toBe(trigger);
+});
+
+test("mission navigation marks only its real parent project as current location", () => {
+  pathname = "/w/atelier/projects/project-1/missions/mission-1";
+  renderShell();
+  const navigation = screen.getByRole("navigation", { name: "Workspace navigation" });
+  expect(within(navigation).getByRole("link", { name: "Northstar" }).getAttribute("aria-current")).toBe("location");
+  expect(within(navigation).getByRole("link", { name: "Overview" }).hasAttribute("aria-current")).toBe(false);
+});
