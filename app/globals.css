@@ -230,7 +230,7 @@
 }
 @media (max-width: 639px) { .mission-zone { padding: 20px 16px; } }
 
-@layer components {
+/* State treatments override the base primitive's neutral utility colors. */
   .ai-composer { transition: border-color var(--motion-fast) var(--motion-ease); }
   .ai-composer:focus-within { border-color: color-mix(in srgb, var(--primary) 65%, var(--border)); }
   .review-card { transition: border-color var(--motion-standard) var(--motion-ease), background-color var(--motion-standard) var(--motion-ease); }
@@ -240,8 +240,6 @@
   .review-card[data-status="dismissed"] { background: var(--background); border-color: var(--border); }
   .review-card[data-status="dismissed"] .review-status { color: var(--text-secondary); border-color: var(--border); }
   .review-card[data-status="dismissed"] [data-slot="card-title"] { color: var(--text-secondary); }
-}
-
 .loading-placeholder { border-radius: 6px; background: var(--surface-3); }
 @media (prefers-reduced-motion: no-preference) {
   .loading-placeholder { animation: loading-opacity 1400ms ease-in-out infinite; }

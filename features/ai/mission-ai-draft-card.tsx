@@ -1,7 +1,7 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
-import { SparklesIcon } from "lucide-react";
+import { useEffect, useRef, useState, useTransition } from "react";
+import { Check, LoaderCircle, SparklesIcon } from "lucide-react";
 import {
   approveMissionAiDraftAction,
   dismissMissionAiDraftAction,
@@ -43,24 +43,37 @@ export function MissionAiDraftCard({
   const [error, setError] = useState<string | null>(null);
   const [confirmedStatus, setConfirmedStatus] = useState<"applied" | "dismissed" | null>(null);
   const actionInFlight = useRef(false);
+  const statusRef = useRef<HTMLSpanElement>(null);
+  const restoreReviewFocus = useRef(false);
 
   const status = confirmedStatus ?? draft.status;
   const statusPresentation = getDraftStatusPresentation(status);
   const confidencePresentation = getConfidenceTierPresentation(draft.confidence_tier);
   const isPendingReview = status === "pending_review";
 
+  useEffect(() => {
+    if (confirmedStatus && restoreReviewFocus.current) {
+      statusRef.current?.focus();
+      restoreReviewFocus.current = false;
+    }
+  }, [confirmedStatus]);
+
   function handleReview(action: "approve" | "dismiss") {
     if (actionInFlight.current || !isPendingReview) return;
     actionInFlight.current = true;
     setError(null);
     setPendingAction(action);
+    const trigger = document.activeElement;
     startTransition(async () => {
       try {
         const result = action === "approve"
           ? await approveMissionAiDraftAction(workspaceSlug, projectId, missionId, draft.id)
           : await dismissMissionAiDraftAction(workspaceSlug, projectId, missionId, draft.id);
         if (result.error) setError(result.error);
-        else setConfirmedStatus(action === "approve" ? "applied" : "dismissed");
+        else {
+          restoreReviewFocus.current = document.activeElement === trigger || document.activeElement === document.body;
+          setConfirmedStatus(action === "approve" ? "applied" : "dismissed");
+        }
       } catch (failure) {
         setError(failure instanceof Error ? failure.message : "Unable to complete review action.");
       } finally {
@@ -71,26 +84,27 @@ export function MissionAiDraftCard({
   }
 
   return (
-    <Card aria-label={`AI draft, ${statusPresentation.label.toLowerCase()}`} aria-busy={!!pendingAction} className="gap-5 border border-border bg-surface-raised ring-0">
+    <Card data-status={status} aria-label={`AI draft, ${statusPresentation.label.toLowerCase()}`} aria-busy={!!pendingAction} className="review-card gap-5 border border-border-strong bg-surface ring-0">
       <CardHeader className="gap-3">
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="secondary" className="bg-primary/10 text-primary">
             <SparklesIcon aria-hidden="true" />
             AI-generated
           </Badge>
-          <Badge variant={statusPresentation.variant} role="status" aria-live="polite" className="motion-safe:animate-in motion-safe:fade-in motion-safe:duration-[200ms]">
+          <Badge ref={statusRef} tabIndex={-1} variant="outline" role="status" aria-live="polite" className="review-status h-6 gap-1.5">
+            {status === "applied" && <Check aria-hidden="true" />}
             {statusPresentation.label}
           </Badge>
         </div>
-        <CardTitle className="text-lg leading-7 text-foreground">{draft.summary}</CardTitle>
-        <p className="text-xs text-text-tertiary">Created {formatDraftTimestamp(draft.created_at)}</p>
+        <CardTitle className="break-words text-base leading-7 text-foreground">{draft.summary}</CardTitle>
+        <p className="text-xs text-text-secondary">Created {formatDraftTimestamp(draft.created_at)}</p>
       </CardHeader>
 
       <CardContent className="space-y-4">
         <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-secondary">
           Suggested actions
         </p>
-        <ul className="list-disc space-y-2 pl-5 text-sm leading-6 text-foreground">
+        <ul className="list-disc space-y-2 break-words pl-5 text-sm leading-6 text-foreground">
           {draft.suggested_actions.map((action, index) => (
             <li key={index}>{action}</li>
           ))}
@@ -113,17 +127,17 @@ export function MissionAiDraftCard({
 
       {isPendingReview && (
         <CardFooter className="flex-col items-start gap-3">
-          <div aria-live="polite" role="status" className={`min-h-5 text-sm ${error ? "text-error" : "text-text-secondary"}`}>
-            {error || (pendingAction === "approve" ? "Approving…" : pendingAction === "dismiss" ? "Dismissing…" : "Pending human review.")}
+          <div aria-live="polite" role="status" className="min-h-5 text-sm text-text-secondary">
+            {error ? <p className="state-entry text-error">{error}</p> : <span className="flex items-center gap-2">{pendingAction && <LoaderCircle aria-hidden="true" size={14} className="motion-safe:animate-spin" />}{pendingAction === "approve" ? "Approving…" : pendingAction === "dismiss" ? "Dismissing…" : "Pending human review."}</span>}
           </div>
           <div className="flex gap-2">
-            <Button type="button" onClick={() => handleReview("approve")} disabled={isPending || !!pendingAction} className="motion-reduce:active:translate-y-0">
+            <Button type="button" onClick={() => handleReview("approve")} disabled={isPending || !!pendingAction} className="min-w-28 motion-reduce:active:translate-y-0">
               {pendingAction === "approve" ? "Approving…" : "Approve"}
             </Button>
             <Button
               type="button"
               variant="outline"
-              className="motion-reduce:active:translate-y-0"
+              className="min-w-28 motion-reduce:active:translate-y-0"
               onClick={() => handleReview("dismiss")}
               disabled={isPending || !!pendingAction}
             >

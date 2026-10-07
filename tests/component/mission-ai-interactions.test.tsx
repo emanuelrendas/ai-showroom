@@ -245,3 +245,31 @@ test("keyboard review and reduced motion keep status text accessible", async () 
   expect(screen.getByText("Pending review")).toBeTruthy();
   vi.unstubAllGlobals();
 });
+
+test("failed generation preserves task and context for a corrected retry", async () => {
+  vi.mocked(generateMissionAiDraftAction).mockResolvedValueOnce({ error: "Provider unavailable." }).mockResolvedValueOnce({ error: null, draftId: "draft-1", route: productionRoute() });
+  const user = userEvent.setup();
+  render(<GenerateDraftForm {...ids} />);
+  await user.selectOptions(screen.getByRole("combobox"), "classify");
+  const prompt = screen.getByRole("textbox") as HTMLTextAreaElement;
+  await user.type(prompt, "Classify the launch review risks.");
+  expect((screen.getByRole("combobox") as HTMLSelectElement).value).toBe("classify");
+  await user.click(screen.getByRole("button", { name: "Generate AI draft" }));
+  expect(await screen.findByText("Provider unavailable.")).toBeTruthy();
+  expect(prompt.value).toBe("Classify the launch review risks.");
+  expect((screen.getByRole("combobox") as HTMLSelectElement).value).toBe("classify");
+  await user.click(screen.getByRole("button", { name: "Generate AI draft" }));
+  expect(await screen.findByText("Draft saved for human review.")).toBeTruthy();
+  expect(screen.queryByText("Provider unavailable.")).toBeNull();
+});
+
+test.each(["Approve", "Dismiss"])("%s transfers keyboard focus to the confirmed review status", async (label) => {
+  vi.mocked(approveMissionAiDraftAction).mockResolvedValue({ error: null, draftId: draft.id });
+  vi.mocked(dismissMissionAiDraftAction).mockResolvedValue({ error: null, draftId: draft.id });
+  const user = userEvent.setup();
+  render(<MissionAiDraftCard draft={draft} {...ids} />);
+  screen.getByRole("button", { name: label }).focus();
+  await user.keyboard("{Enter}");
+  const status = await screen.findByText(label === "Approve" ? "Applied" : "Dismissed");
+  expect(document.activeElement).toBe(status);
+});
