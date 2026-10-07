@@ -64,3 +64,15 @@ test("mission list exposes readable lifecycle status distinct from priority", as
   const summary = screen.getByText("Create mission", { selector: "summary" });
   expect(summary.closest("details")?.open).toBe(false);
 });
+
+test("empty workspace offers working project creation without invented records", async () => {
+  vi.mocked(getProjectsForWorkspace).mockResolvedValue([]);
+  const user = userEvent.setup();
+  render(await WorkspacePage({ params: Promise.resolve({ workspaceSlug: "atelier" }) }));
+  expect(screen.getByRole("heading", { name: "No projects yet" })).toBeTruthy();
+  expect(screen.queryByRole("list", { name: "Projects" })).toBeNull();
+  const summary = screen.getByText("Create project", { selector: "summary" });
+  summary.focus();
+  await user.keyboard("{Enter}");
+  expect(screen.getByRole("textbox", { name: "Project name" })).toBeTruthy();
+});
