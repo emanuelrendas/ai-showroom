@@ -21,7 +21,7 @@ export default async function AppPage() {
               {workspaces.map((workspace) => <li key={workspace.id}>
                 <Link href={`/w/${workspace.slug}`} className="operating-row group">
                   <span aria-hidden="true" className="flex size-11 shrink-0 items-center justify-center rounded-lg border border-border bg-surface-raised text-primary"><Layers2 size={18} /></span>
-                  <div className="min-w-0 flex-1"><h3 className="truncate text-base font-medium">{workspace.name}</h3><p className="mt-1 text-xs text-text-secondary">/{workspace.slug}</p></div>
+                  <div className="min-w-0 flex-1"><h3 className="truncate text-base font-medium">{workspace.name}</h3><p className="mt-1 truncate text-xs text-text-secondary">/{workspace.slug}</p></div>
                   <span className="hidden text-xs text-text-secondary sm:block">Open workspace</span>
                   <ArrowRight aria-hidden="true" size={16} className="row-arrow" />
                 </Link>

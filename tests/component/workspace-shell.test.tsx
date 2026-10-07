@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, test, vi } from "vitest";
 import { WorkspaceShell } from "@/features/workspaces/workspace-shell";
@@ -134,4 +134,15 @@ test("mission navigation marks only its real parent project as current location"
   const navigation = screen.getByRole("navigation", { name: "Workspace navigation" });
   expect(within(navigation).getByRole("link", { name: "Northstar" }).getAttribute("aria-current")).toBe("location");
   expect(within(navigation).getByRole("link", { name: "Overview" }).hasAttribute("aria-current")).toBe(false);
+});
+
+test("resizing an open drawer to desktop restores a visible navigation control", async () => {
+  const user = userEvent.setup();
+  renderShell();
+  await user.click(screen.getByRole("button", { name: "Open navigation" }));
+  const drawer = screen.getByRole("dialog", { name: "Navigation" });
+  fireEvent(window, new Event("resize"));
+  expect(drawer.getAttribute("data-open")).toBe("false");
+  expect(document.activeElement).toBe(screen.getByRole("button", { name: "Collapse navigation" }));
+  expect(document.body.style.overflow).toBe("");
 });

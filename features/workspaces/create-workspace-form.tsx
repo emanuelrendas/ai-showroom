@@ -27,7 +27,7 @@ export function CreateWorkspaceForm() {
       </div>
 
       <div aria-live="polite" className="min-h-5 text-sm text-error">
-        {state.error}
+        {state.error && <p className="state-entry">{state.error}</p>}
       </div>
 
       <Button type="submit" disabled={isPending}>
@@ -36,4 +36,3 @@ export function CreateWorkspaceForm() {
     </form>
   );
 }
-

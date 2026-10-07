@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useActionState } from "react";
 import { createProjectAction, type ProjectActionState } from "@/features/projects/actions";
@@ -45,7 +45,7 @@ export function CreateProjectForm({ workspaceSlug }: CreateProjectFormProps) {
       </div>
 
       <div aria-live="polite" className="min-h-5 text-sm text-error">
-        {state.error}
+        {state.error && <p className="state-entry">{state.error}</p>}
       </div>
 
       <Button type="submit" disabled={isPending}>

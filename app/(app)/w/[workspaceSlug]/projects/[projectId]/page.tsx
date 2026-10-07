@@ -16,9 +16,9 @@ export default async function ProjectPage({ params }: { params: Promise<{ worksp
   const missions = await getMissionsForProject(project.id);
   return <div className="max-w-6xl">
     <header className="border-b border-border pb-8">
-      <nav aria-label="Breadcrumb" className="mb-6 flex flex-wrap items-center gap-2 text-xs text-text-secondary"><Link href={`/w/${workspace.slug}`} className="hover:text-foreground">{workspace.name}</Link><span aria-hidden="true">/</span><span aria-current="page">{project.name}</span></nav>
+      <nav aria-label="Breadcrumb" className="mb-6 flex flex-wrap items-center gap-2 text-xs text-text-secondary"><Link href={`/w/${workspace.slug}`} className="hover:text-foreground">{workspace.name}</Link><span aria-hidden="true">/</span><span aria-current="page" className="min-w-0 break-words">{project.name}</span></nav>
       <p className="eyebrow text-primary">Project</p>
-      <div className="mt-2 flex flex-wrap items-center justify-between gap-4"><h1 className="break-words text-[32px] font-semibold tracking-tight">{project.name}</h1><StatusBadge status={project.status} /></div>
+      <div className="mt-2 flex flex-wrap items-center justify-between gap-4"><h1 className="min-w-0 max-w-full break-words text-[32px] font-semibold tracking-tight">{project.name}</h1><StatusBadge status={project.status} /></div>
       <p className="mt-3 max-w-2xl text-sm leading-6 text-text-secondary">{project.description || "No description provided."}</p>
     </header>
     <div key={project.id} className="page-entry pt-8">

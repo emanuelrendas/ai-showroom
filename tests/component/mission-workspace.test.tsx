@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { MissionAiDraftsPanel } from "@/features/ai/mission-ai-drafts-panel";
@@ -155,4 +155,23 @@ test("only a newly received draft reveals once; existing records remain stable",
   expect(fresh.getAttribute("data-reveal")).toBe("false");
   view.rerender(<MissionAiDraftsPanel workspace={workspace} project={project} mission={mission} drafts={[{ ...added, status: "applied" }, draft]} />);
   expect(fresh.getAttribute("data-reveal")).toBe("false");
+});
+
+test("enabling reduced motion ends a reveal without hiding content or replaying it later", () => {
+  let reduced = false;
+  const listeners = new Set<() => void>();
+  vi.stubGlobal("matchMedia", () => ({
+    get matches() { return reduced; },
+    addEventListener: (_event: string, listener: () => void) => listeners.add(listener),
+    removeEventListener: (_event: string, listener: () => void) => listeners.delete(listener),
+  }));
+  const view = renderWorkspace();
+  view.rerender(<MissionAiDraftsPanel workspace={workspace} project={project} mission={mission} drafts={[draft]} />);
+  const record = screen.getByLabelText("AI draft, pending review").closest("li");
+  expect(record?.getAttribute("data-reveal")).toBe("true");
+  act(() => { reduced = true; listeners.forEach((listener) => listener()); });
+  expect(record?.getAttribute("data-reveal")).toBe("false");
+  expect(screen.getByRole("button", { name: "Approve" })).toBeTruthy();
+  act(() => { reduced = false; listeners.forEach((listener) => listener()); });
+  expect(record?.getAttribute("data-reveal")).toBe("false");
 });

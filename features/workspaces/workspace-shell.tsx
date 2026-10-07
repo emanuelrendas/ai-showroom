@@ -20,6 +20,7 @@ export function WorkspaceShell({ workspace, displayName, projects, children }: W
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const menuRef = useRef<HTMLButtonElement>(null);
+  const collapseRef = useRef<HTMLButtonElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
   const drawerRef = useRef<HTMLDivElement>(null);
   const overviewHref = `/w/${workspace.slug}`;
@@ -27,6 +28,7 @@ export function WorkspaceShell({ workspace, displayName, projects, children }: W
   useEffect(() => {
     if (!mobileOpen) return;
     const previousOverflow = document.body.style.overflow;
+    let returnTarget = menuRef.current;
     document.body.style.overflow = "hidden";
     closeRef.current?.focus();
     function close() {
@@ -55,7 +57,10 @@ export function WorkspaceShell({ workspace, displayName, projects, children }: W
       if (!drawerRef.current?.contains(event.target as Node)) closeRef.current?.focus();
     }
     function onResize() {
-      if (window.innerWidth >= 768) close();
+      if (window.innerWidth >= 768) {
+        returnTarget = collapseRef.current;
+        close();
+      }
     }
     document.addEventListener("keydown", onKeyDown);
     document.addEventListener("focusin", containFocus);
@@ -66,7 +71,7 @@ export function WorkspaceShell({ workspace, displayName, projects, children }: W
       document.removeEventListener("focusin", containFocus);
       window.removeEventListener("resize", onResize);
       // React has removed inert by cleanup; focus never waits on motion.
-      menuRef.current?.focus();
+      returnTarget?.focus();
     };
   }, [mobileOpen]);
 
@@ -88,7 +93,7 @@ export function WorkspaceShell({ workspace, displayName, projects, children }: W
           {isMobile && <button ref={closeRef} type="button" aria-label="Close navigation" onClick={closeMobile} className="shell-icon-button absolute right-2 top-5"><X size={18} /></button>}
         </div>
         {!isMobile && (
-          <button type="button" aria-label={collapsed ? "Expand navigation" : "Collapse navigation"} aria-expanded={!collapsed} onClick={() => setCollapsed((value) => !value)} className="shell-collapse shell-nav-link">
+          <button ref={collapseRef} type="button" aria-label={collapsed ? "Expand navigation" : "Collapse navigation"} aria-expanded={!collapsed} onClick={() => setCollapsed((value) => !value)} className="shell-collapse shell-nav-link">
             <ChevronLeft size={18} aria-hidden="true" className={`shrink-0 transition-transform ${collapsed ? "rotate-180" : ""}`} />
             <span className="shell-label">Collapse navigation</span>
           </button>
