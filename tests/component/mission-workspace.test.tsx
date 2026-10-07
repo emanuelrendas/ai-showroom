@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { MissionAiDraftsPanel } from "@/features/ai/mission-ai-drafts-panel";
@@ -89,7 +89,7 @@ test("activity reports persisted draft facts and approved time", () => {
 });
 
 test.each([false, true])("route result and human review survive mobile mode changes with reduced motion = %s", async (reducedMotion) => {
-  vi.stubGlobal("matchMedia", () => ({ matches: reducedMotion, media: "(prefers-reduced-motion: reduce)", addListener: vi.fn(), removeListener: vi.fn() }));
+  vi.stubGlobal("matchMedia", () => ({ matches: reducedMotion, media: "(prefers-reduced-motion: reduce)", addEventListener: vi.fn(), removeEventListener: vi.fn() }));
   const result = routeModel(routeRequest);
   if (!result.ok) throw new Error("Expected a production route");
   vi.mocked(generateMissionAiDraftAction).mockResolvedValue({
@@ -104,6 +104,8 @@ test.each([false, true])("route result and human review survive mobile mode chan
   expect(await within(composer).findByText("Draft saved for human review.")).toBeTruthy();
   // Model the refreshed server props after revalidation; approval is still pending.
   view.rerender(<MissionAiDraftsPanel workspace={workspace} project={project} mission={mission} drafts={[draft]} />);
+  const record = screen.getByLabelText("AI draft, pending review").closest("li");
+  expect(record?.getAttribute("data-reveal")).toBe(reducedMotion ? "false" : "true");
   const modes = screen.getByRole("group", { name: "Mission working modes" });
   for (const mode of ["Context", "Activity", "AI"]) {
     const button = within(modes).getByRole("button", { name: mode });
@@ -121,4 +123,36 @@ test.each([false, true])("route result and human review survive mobile mode chan
   expect(within(ai).getByRole("button", { name: "Dismiss" })).toBeTruthy();
   expect(within(ai).getAllByRole("combobox")).toHaveLength(1);
   expect(ai.textContent).not.toMatch(/synthetic-|Routing…|Validating…/);
+});
+
+test("mode arrow keys wrap and preserve the composer context", async () => {
+  const user = userEvent.setup();
+  renderWorkspace();
+  const prompt = screen.getByRole("textbox", { name: "Prompt / Context" });
+  await user.type(prompt, "Keep this context while reviewing activity.");
+  const modes = screen.getByRole("group", { name: "Mission working modes" });
+  const ai = within(modes).getByRole("button", { name: "AI" });
+  ai.focus();
+  await user.keyboard("{ArrowRight}");
+  expect(within(modes).getByRole("button", { name: "Activity" }).getAttribute("aria-pressed")).toBe("true");
+  await user.keyboard("{ArrowRight}");
+  expect(within(modes).getByRole("button", { name: "Context" })).toBe(document.activeElement);
+  await user.keyboard("{End}{Home}{ArrowRight}");
+  expect(ai.getAttribute("aria-pressed")).toBe("true");
+  expect((prompt as HTMLTextAreaElement).value).toBe("Keep this context while reviewing activity.");
+});
+
+test("only a newly received draft reveals once; existing records remain stable", () => {
+  const view = renderWorkspace([draft]);
+  const existing = screen.getByLabelText("AI draft, pending review").closest("li");
+  expect(existing?.getAttribute("data-reveal")).toBe("false");
+  const added = { ...draft, id: "draft-2", summary: "New launch plan" };
+  view.rerender(<MissionAiDraftsPanel workspace={workspace} project={project} mission={mission} drafts={[added, draft]} />);
+  const fresh = screen.getByText("New launch plan", { selector: "[data-slot=card-title]" }).closest("li")!;
+  expect(fresh.getAttribute("data-reveal")).toBe("true");
+  expect(existing?.getAttribute("data-reveal")).toBe("false");
+  fireEvent.animationEnd(fresh);
+  expect(fresh.getAttribute("data-reveal")).toBe("false");
+  view.rerender(<MissionAiDraftsPanel workspace={workspace} project={project} mission={mission} drafts={[{ ...added, status: "applied" }, draft]} />);
+  expect(fresh.getAttribute("data-reveal")).toBe("false");
 });

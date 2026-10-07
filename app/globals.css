@@ -211,3 +211,39 @@
 }
 @media (max-width: 639px) { .operating-row { padding: 20px 16px; gap: 12px; } }
 @media (prefers-reduced-motion: reduce) { .row-arrow { transform: none !important; } }
+
+@layer components {
+  .mission-surface { display: grid; overflow: clip; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
+  .mission-zone { display: none; min-width: 0; padding: 24px; }
+  .mission-zone[data-active="true"] { display: block; animation: content-enter var(--motion-enter) var(--motion-ease); }
+  .mission-ai { background: color-mix(in srgb, var(--surface) 60%, var(--background)); }
+  .mission-mode { color: var(--text-secondary); transition: background-color var(--motion-fast), color var(--motion-fast); }
+  .mission-mode[aria-pressed="true"] { background: var(--surface-3); color: var(--primary); }
+  .mission-mode:hover { color: var(--foreground); }
+  .activity-record::before { content: ""; position: absolute; top: 7px; left: -3px; width: 5px; height: 5px; border-radius: 50%; background: var(--text-secondary); }
+}
+@container (min-width: 960px) {
+  .mission-modes { display: none; }
+  .mission-surface { grid-template-columns: minmax(0,1fr) minmax(0,2fr) minmax(0,1fr); }
+  .mission-zone, .mission-zone[data-active="true"] { display: block; animation: none; padding: 24px 20px; }
+  .mission-ai { border-left: 1px solid var(--border); border-right: 1px solid var(--border); padding: 24px; }
+}
+@media (max-width: 639px) { .mission-zone { padding: 20px 16px; } }
+
+@layer components {
+  .ai-composer { transition: border-color var(--motion-fast) var(--motion-ease); }
+  .ai-composer:focus-within { border-color: color-mix(in srgb, var(--primary) 65%, var(--border)); }
+  .review-card { transition: border-color var(--motion-standard) var(--motion-ease), background-color var(--motion-standard) var(--motion-ease); }
+  .review-status { color: var(--warning); border-color: color-mix(in srgb, var(--warning) 25%, transparent); background: transparent; transition: color var(--motion-standard), border-color var(--motion-standard), background-color var(--motion-standard); }
+  .review-card[data-status="applied"] { border-color: color-mix(in srgb, var(--success) 30%, var(--border)); }
+  .review-card[data-status="applied"] .review-status { color: var(--success); border-color: color-mix(in srgb, var(--success) 25%, transparent); background: color-mix(in srgb, var(--success) 5%, transparent); }
+  .review-card[data-status="dismissed"] { background: var(--background); border-color: var(--border); }
+  .review-card[data-status="dismissed"] .review-status { color: var(--text-secondary); border-color: var(--border); }
+  .review-card[data-status="dismissed"] [data-slot="card-title"] { color: var(--text-secondary); }
+}
+
+.loading-placeholder { border-radius: 6px; background: var(--surface-3); }
+@media (prefers-reduced-motion: no-preference) {
+  .loading-placeholder { animation: loading-opacity 1400ms ease-in-out infinite; }
+}
+@keyframes loading-opacity { 50% { opacity: .5; } }

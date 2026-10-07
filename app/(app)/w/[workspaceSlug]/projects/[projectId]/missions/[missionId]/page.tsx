@@ -36,5 +36,5 @@ export default async function MissionPage({
 
   const drafts = await getMissionAiDrafts(missionId);
 
-  return <MissionAiDraftsPanel workspace={workspace} project={project} mission={mission} drafts={drafts} />;
+  return <MissionAiDraftsPanel key={mission.id} workspace={workspace} project={project} mission={mission} drafts={drafts} />;
 }
