@@ -84,34 +84,34 @@ export function MissionAiDraftCard({
   }
 
   return (
-    <Card data-status={status} aria-label={`AI draft, ${statusPresentation.label.toLowerCase()}`} aria-busy={!!pendingAction} className="review-card gap-5 border border-border-strong bg-surface ring-0">
-      <CardHeader className="gap-3">
+    <Card data-status={status} aria-label={`AI draft, ${statusPresentation.label.toLowerCase()}`} aria-busy={!!pendingAction} className="review-card gap-6 ring-0">
+      <CardHeader className="gap-4">
         <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="secondary" className="bg-primary/10 text-primary">
+          <Badge variant="secondary" className="h-6 bg-transparent px-0 text-[13px] text-primary">
             <SparklesIcon aria-hidden="true" />
             AI-generated
           </Badge>
-          <Badge ref={statusRef} tabIndex={-1} variant="outline" role="status" aria-live="polite" className="review-status h-6 gap-1.5">
+          <Badge ref={statusRef} tabIndex={-1} variant="outline" role="status" aria-live="polite" className="review-status ml-auto h-6 gap-1.5 text-[13px]">
             {status === "applied" && <Check aria-hidden="true" />}
             {statusPresentation.label}
           </Badge>
         </div>
-        <CardTitle className="break-words text-base leading-7 text-foreground">{draft.summary}</CardTitle>
-        <p className="text-xs text-text-secondary">Created {formatDraftTimestamp(draft.created_at)}</p>
+        <CardTitle role="heading" aria-level={3} className="break-words text-[22px] font-semibold leading-snug tracking-tight text-foreground">{draft.summary}</CardTitle>
+        <p className="text-[13px] text-text-secondary">Created {formatDraftTimestamp(draft.created_at)}</p>
       </CardHeader>
 
       <CardContent className="space-y-4">
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-secondary">
+        <p className="text-sm font-medium text-text-secondary">
           Suggested actions
         </p>
-        <ul className="list-disc space-y-2 break-words pl-5 text-sm leading-6 text-foreground">
+        <ul className="list-disc space-y-3 break-words pl-5 text-[15px] leading-6 text-foreground marker:text-text-secondary">
           {draft.suggested_actions.map((action, index) => (
             <li key={index}>{action}</li>
           ))}
         </ul>
         {draft.suggested_actions.length === 0 && <p className="text-sm text-text-secondary">No suggested actions.</p>}
 
-        <div className="border-t border-border pt-4 text-xs text-text-secondary">
+        <div className="border-t border-border-strong pt-4 text-[13px] leading-6 text-text-secondary">
           <Badge variant={confidencePresentation.variant} className="mr-2 align-middle">
             {confidencePresentation.label} · {formatConfidenceScore(draft.confidence_score)}
           </Badge>
@@ -119,14 +119,15 @@ export function MissionAiDraftCard({
         </div>
 
         {status === "applied" && draft.approved_at && (
-          <p className="text-xs text-text-secondary">
+          <p className="text-[13px] text-text-secondary">
             Approved {formatDraftTimestamp(draft.approved_at)}
           </p>
         )}
       </CardContent>
 
       {isPendingReview && (
-        <CardFooter className="flex-col items-start gap-3">
+        <CardFooter className="review-boundary flex-col items-start gap-4">
+          <div><p className="text-base font-semibold text-warning">Human review required</p><p className="mt-1 text-[13px] leading-6 text-text-secondary">Review the content before approving. This draft has no authority until you act.</p></div>
           <div aria-live="polite" role="status" className="min-h-5 text-sm text-text-secondary">
             {error ? <p className="state-entry text-error">{error}</p> : <span className="flex items-center gap-2">{pendingAction && <LoaderCircle aria-hidden="true" size={14} className="motion-safe:animate-spin" />}{pendingAction === "approve" ? "Approving…" : pendingAction === "dismiss" ? "Dismissing…" : "Pending human review."}</span>}
           </div>

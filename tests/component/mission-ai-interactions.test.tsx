@@ -116,7 +116,7 @@ test.each([
   await user.type(screen.getByRole("textbox"), "Summarize the launch review notes.");
   await user.click(screen.getByRole("button", { name: "Generate AI draft" }));
   const status = screen.getByRole("status");
-  expect(within(status).getByText(error)).toBeTruthy();
+  expect(await within(status).findByText(error)).toBeTruthy();
   expect(screen.queryByText("Draft saved for human review.")).toBeNull();
   expect(screen.queryByText(/fallback|rerout|synthetic-|GPT|Claude/i)).toBeNull();
   if (failureCategory === "routing") {

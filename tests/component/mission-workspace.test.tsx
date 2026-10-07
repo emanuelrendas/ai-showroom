@@ -80,6 +80,57 @@ test("empty draft and activity states do not imply events", () => {
   expect(screen.getByText("No draft activity yet.")).toBeTruthy();
 });
 
+test("saved results lead the workspace and the composer opens without losing input", async () => {
+  const user = userEvent.setup();
+  renderWorkspace([draft]);
+  const ai = screen.getByRole("region", { name: "AI Workspace" });
+  const toggle = within(ai).getByRole("button", { name: "Generate another draft" });
+  expect(toggle.getAttribute("aria-expanded")).toBe("false");
+  expect(within(ai).queryByRole("textbox")).toBeNull();
+  expect(within(ai).getByRole("button", { name: "Approve" })).toBeTruthy();
+  await user.click(toggle);
+  await user.type(within(ai).getByRole("textbox"), "Keep this source for a second draft.");
+  await user.selectOptions(within(ai).getByRole("combobox"), "classify");
+  await user.click(toggle);
+  await user.click(toggle);
+  expect((within(ai).getByRole("textbox") as HTMLTextAreaElement).value).toBe("Keep this source for a second draft.");
+  expect((within(ai).getByRole("combobox") as HTMLSelectElement).value).toBe("classify");
+});
+
+test("a new result precedes the composer without discarding its context", async () => {
+  const user = userEvent.setup();
+  const view = renderWorkspace();
+  const prompt = screen.getByRole("textbox");
+  await user.type(prompt, "Preserve my working context.");
+  view.rerender(<MissionAiDraftsPanel workspace={workspace} project={project} mission={mission} drafts={[draft]} />);
+  const result = screen.getByLabelText("AI draft, pending review");
+  const form = screen.getByRole("form", { name: "Generate an AI draft for this mission" });
+  expect(result.compareDocumentPosition(form) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect((prompt as HTMLTextAreaElement).value).toBe("Preserve my working context.");
+  expect(document.activeElement).toBe(prompt);
+});
+
+test("secondary composer stays open while pending and keeps the actual route visible when collapsed", async () => {
+  let resolve!: (value: Awaited<ReturnType<typeof generateMissionAiDraftAction>>) => void;
+  vi.mocked(generateMissionAiDraftAction).mockReturnValue(new Promise((done) => { resolve = done; }));
+  const result = routeModel(routeRequest);
+  if (!result.ok) throw new Error("Expected a production route");
+  const user = userEvent.setup();
+  renderWorkspace([draft]);
+  const toggle = screen.getByRole("button", { name: "Generate another draft" });
+  await user.click(toggle);
+  await user.type(screen.getByRole("textbox"), "Summarize the revised launch notes.");
+  await user.click(screen.getByRole("button", { name: "Generate AI draft" }));
+  expect(toggle.hasAttribute("disabled")).toBe(true);
+  expect(toggle.getAttribute("aria-expanded")).toBe("true");
+  expect(screen.queryByRole("button", { name: /Stop|Cancel/ })).toBeNull();
+  await act(async () => resolve({ error: null, draftId: "draft-2", route: toRoutePresentation(result.decision) }));
+  await user.click(toggle);
+  expect(screen.queryByRole("textbox")).toBeNull();
+  expect(screen.getByText("Auto · Gemini 3.6 Flash")).toBeTruthy();
+  expect(screen.getByText("Draft saved for human review.")).toBeTruthy();
+});
+
 test("activity reports persisted draft facts and approved time", () => {
   renderWorkspace([{ ...draft, status: "applied", approved_at: "2026-09-28T13:00:00Z" }]);
   const activity = screen.getByRole("region", { name: "Activity and review history" });
