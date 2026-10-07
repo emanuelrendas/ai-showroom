@@ -84,10 +84,10 @@ export function WorkspaceShell({ workspace, displayName, projects, children }: W
       <>
         <div className="shell-identity">
           <Link href="/app" aria-label={`AI SHOWROOM, ${workspace.name}, all workspaces`} className="flex min-w-0 items-center gap-3 rounded-lg" onClick={isMobile ? closeMobile : undefined}>
-            <span aria-hidden="true" className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-primary/20 bg-primary/10 text-xs font-semibold tracking-tight text-primary">AI</span>
+            <span aria-hidden="true" className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary text-base font-bold tracking-tight text-primary-foreground">AI</span>
             <span className="shell-label min-w-0">
-              <span className="block text-[10px] font-semibold tracking-[0.18em] text-text-secondary">AI SHOWROOM</span>
-              <span className="mt-1 block truncate text-sm font-medium">{workspace.name}</span>
+              <span className="block text-[13px] font-semibold tracking-[0.04em]">AI SHOWROOM</span>
+              <span className="mt-1 block truncate text-[13px] text-text-secondary">{workspace.name}</span>
             </span>
           </Link>
           {isMobile && <button ref={closeRef} type="button" aria-label="Close navigation" onClick={closeMobile} className="shell-icon-button absolute right-2 top-5"><X size={18} /></button>}
@@ -99,11 +99,11 @@ export function WorkspaceShell({ workspace, displayName, projects, children }: W
           </button>
         )}
         <nav aria-label={isMobile ? "Mobile workspace navigation" : "Workspace navigation"} className="flex-1 overflow-x-hidden overflow-y-auto px-4 py-5">
-          <p className="shell-label mb-3 px-3 text-[10px] font-medium uppercase tracking-[0.16em] text-text-secondary">Workspace</p>
+          <p className="shell-label mb-2 px-3 text-xs font-medium text-text-secondary">Workspace</p>
           <Link href={overviewHref} aria-label="Overview" aria-current={pathname === overviewHref ? "page" : undefined} title="Overview" onClick={isMobile ? closeMobile : undefined} className="shell-nav-link">
             <LayoutGrid size={18} aria-hidden="true" /><span className="shell-label">Overview</span>
           </Link>
-          <p className="shell-label mb-3 mt-7 px-3 text-[10px] font-medium uppercase tracking-[0.16em] text-text-secondary">Projects</p>
+          <p className="shell-label mb-2 mt-7 px-3 text-xs font-medium text-text-secondary">Projects</p>
           <div className="space-y-1">
             {projects.map((project) => {
               const href = `${overviewHref}/projects/${project.id}`;
@@ -142,7 +142,7 @@ export function WorkspaceShell({ workspace, displayName, projects, children }: W
           <span className="text-xs font-semibold tracking-[0.16em] text-primary">AI SHOWROOM</span>
           <span className="min-w-0 truncate border-l border-border pl-3 text-sm text-text-secondary">{workspace.name}</span>
         </header>
-        <main className="@container mx-auto min-w-0 max-w-[1680px] px-4 py-7 sm:px-6 md:px-8 md:py-9">{children}</main>
+        <main className="@container mx-auto min-w-0 max-w-[1680px] px-4 py-7 sm:px-6 md:px-8 md:py-8">{children}</main>
       </div>
       <div data-open={mobileOpen} className="mobile-navigation fixed inset-0 z-40 md:hidden" aria-hidden={!mobileOpen}>
         <button type="button" tabIndex={-1} aria-label="Close navigation backdrop" onClick={closeMobile} className="drawer-backdrop absolute inset-0 bg-black/65" />
