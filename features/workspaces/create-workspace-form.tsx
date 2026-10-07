@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useActionState } from "react";
 import { createWorkspaceAction, type WorkspaceActionState } from "@/features/workspaces/actions";
@@ -18,15 +18,15 @@ export function CreateWorkspaceForm() {
     <form action={formAction} className="space-y-5">
       <div className="space-y-2">
         <Label htmlFor="name">Workspace name</Label>
-        <Input id="name" name="name" defaultValue="RAIOC" required />
+        <Input id="name" name="name" placeholder="Workspace name" maxLength={80} required />
       </div>
 
       <div className="space-y-2">
         <Label htmlFor="slug">Workspace slug</Label>
-        <Input id="slug" name="slug" defaultValue="raioc" required />
+        <Input id="slug" name="slug" placeholder="workspace-name" required />
       </div>
 
-      <div aria-live="polite" className="min-h-5 text-sm text-red-400">
+      <div aria-live="polite" className="min-h-5 text-sm text-error">
         {state.error}
       </div>
 
@@ -36,3 +36,4 @@ export function CreateWorkspaceForm() {
     </form>
   );
 }
+

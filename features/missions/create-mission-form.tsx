@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useActionState } from "react";
 import { createMissionAction, type MissionActionState } from "@/features/missions/actions";
@@ -59,7 +59,7 @@ export function CreateMissionForm({
             id="mission-status"
             name="status"
             defaultValue="todo"
-            className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground focus-visible:outline-2 focus-visible:outline-ring"
+            className="control-select"
           >
             <option value="todo">Todo</option>
             <option value="in_progress">In progress</option>
@@ -75,7 +75,7 @@ export function CreateMissionForm({
             id="mission-priority"
             name="priority"
             defaultValue="medium"
-            className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground focus-visible:outline-2 focus-visible:outline-ring"
+            className="control-select"
           >
             <option value="low">Low</option>
             <option value="medium">Medium</option>
@@ -95,3 +95,4 @@ export function CreateMissionForm({
     </form>
   );
 }
+
