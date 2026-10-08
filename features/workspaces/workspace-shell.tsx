@@ -84,7 +84,7 @@ export function WorkspaceShell({ workspace, displayName, projects, children }: W
       <>
         <div className="shell-identity">
           <Link href="/app" aria-label={`AI SHOWROOM, ${workspace.name}, all workspaces`} className="flex min-w-0 items-center gap-3 rounded-lg" onClick={isMobile ? closeMobile : undefined}>
-            <span aria-hidden="true" className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary text-base font-bold tracking-tight text-primary-foreground">AI</span>
+            <span aria-hidden="true" className="studio-mark flex size-10 shrink-0 items-center justify-center rounded-lg text-base font-bold tracking-tight">AI</span>
             <span className="shell-label min-w-0">
               <span className="block text-[13px] font-semibold tracking-[0.04em]">AI SHOWROOM</span>
               <span className="mt-1 block truncate text-[13px] text-text-secondary">{workspace.name}</span>
@@ -132,7 +132,7 @@ export function WorkspaceShell({ workspace, displayName, projects, children }: W
   }
 
   return (
-    <div data-testid="workspace-shell" data-collapsed={collapsed} className="flex min-h-screen bg-background text-foreground">
+    <div data-testid="workspace-shell" data-collapsed={collapsed} className="studio-shell flex min-h-screen text-foreground">
       <aside inert={mobileOpen} data-collapsed={collapsed} className="desktop-sidebar sticky top-0 hidden h-dvh shrink-0 flex-col overflow-hidden border-r border-border bg-sidebar md:flex">
         {navigation(false)}
       </aside>
@@ -142,7 +142,7 @@ export function WorkspaceShell({ workspace, displayName, projects, children }: W
           <span className="text-xs font-semibold tracking-[0.16em] text-primary">AI SHOWROOM</span>
           <span className="min-w-0 truncate border-l border-border pl-3 text-sm text-text-secondary">{workspace.name}</span>
         </header>
-        <main className="@container mx-auto min-w-0 max-w-[1680px] px-4 py-7 sm:px-6 md:px-8 md:py-8">{children}</main>
+        <main className="studio-canvas @container/workspace min-w-0">{children}</main>
       </div>
       <div data-open={mobileOpen} className="mobile-navigation fixed inset-0 z-40 md:hidden" aria-hidden={!mobileOpen}>
         <button type="button" tabIndex={-1} aria-label="Close navigation backdrop" onClick={closeMobile} className="drawer-backdrop absolute inset-0 bg-black/65" />

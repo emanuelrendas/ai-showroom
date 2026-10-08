@@ -2,7 +2,7 @@ import { Plus } from "lucide-react";
 
 export function CreateDisclosure({ label, children }: { label: string; children: React.ReactNode }) {
   return <details className="create-disclosure group mt-6">
-    <summary className="flex min-h-11 w-fit cursor-pointer list-none items-center gap-2 rounded-lg bg-surface-3 px-4 text-sm font-medium text-foreground transition-colors hover:bg-border-strong [&::-webkit-details-marker]:hidden">
+    <summary className="studio-primary flex min-h-11 w-fit cursor-pointer list-none items-center gap-2 rounded-lg px-4 text-sm font-medium transition-colors [&::-webkit-details-marker]:hidden">
       <Plus size={16} aria-hidden="true" className="transition-transform duration-[var(--motion-fast)] group-open:rotate-45" />
       {label}
     </summary>
