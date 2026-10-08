@@ -43,6 +43,29 @@ test("first workspace form is available without opening a disclosure", async () 
   expect(screen.queryByRole("link", { name: /Atelier/ })).toBeNull();
 });
 
+test("studio entry names the selection region and links each actual workspace", async () => {
+  vi.mocked(getMyWorkspaces).mockResolvedValue([workspace, { ...workspace, id: "w2", name: "Field studio", slug: "field" }]);
+  render(await AppPage());
+  const selection = screen.getByRole("region", { name: "Your workspaces" });
+  const links = within(selection).getAllByRole("link");
+  expect(links.map((link) => link.getAttribute("href"))).toEqual(["/w/atelier", "/w/field"]);
+  expect(screen.getByRole("heading", { level: 1 }).textContent).toMatch(/Focused work\.\s*Human direction\./);
+  expect(screen.queryByRole("searchbox")).toBeNull();
+});
+
+test("empty project keeps mission creation usable by keyboard without fabricated work", async () => {
+  vi.mocked(getMissionsForProject).mockResolvedValue([]);
+  const user = userEvent.setup();
+  render(await ProjectPage({ params: Promise.resolve({ workspaceSlug: "atelier", projectId: "p1" }) }));
+  expect(screen.getByRole("heading", { name: "No missions yet" })).toBeTruthy();
+  expect(screen.queryByRole("list", { name: "Missions" })).toBeNull();
+  const summary = screen.getByText("Create mission", { selector: "summary" });
+  summary.focus();
+  await user.keyboard("{Enter}");
+  expect(screen.getByRole("textbox", { name: "Mission title" })).toBeTruthy();
+  expect(screen.queryByRole("button", { name: /Settings|Filter|Share/ })).toBeNull();
+});
+
 test("workspace project list links real records and exposes creation on demand", async () => {
   const user = userEvent.setup();
   render(await WorkspacePage({ params: Promise.resolve({ workspaceSlug: "atelier" }) }));
