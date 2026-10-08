@@ -65,9 +65,10 @@ export function GenerateDraftForm({
       ref={formRef}
       aria-label="Generate an AI draft for this mission"
       aria-busy={isPending}
+      data-secondary={hasDrafts}
       className="ai-composer space-y-4"
     >
-      {hasDrafts && <button type="button" aria-expanded={expanded} aria-controls="draft-composer-controls" disabled={isPending} onClick={() => setExpanded(!expanded)} className="flex min-h-11 w-full items-center justify-between gap-3 border-t border-border-strong py-3 text-left text-sm font-medium disabled:opacity-60">
+      {hasDrafts && <button type="button" aria-expanded={expanded} aria-controls="draft-composer-controls" disabled={isPending} onClick={() => setExpanded(!expanded)} className="composer-disclosure flex min-h-11 w-full items-center justify-between gap-3 py-3 text-left text-sm font-medium text-primary disabled:opacity-60">
         Generate another draft<ChevronDown aria-hidden="true" size={16} className={expanded ? "rotate-180" : undefined} />
       </button>}
       <div id="draft-composer-controls" hidden={hasDrafts && !expanded} className="space-y-5">
@@ -103,7 +104,7 @@ export function GenerateDraftForm({
           placeholder="Add the source material. Describe the outcome you need."
           minLength={PROMPT_CONTEXT_MIN_LENGTH}
           maxLength={PROMPT_CONTEXT_MAX_LENGTH}
-          rows={8}
+          rows={hasDrafts ? 3 : 8}
           className="composer-prompt resize-y focus-visible:ring-0"
           required
         />

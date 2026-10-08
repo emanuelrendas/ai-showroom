@@ -97,6 +97,17 @@ test("saved results lead the workspace and the composer opens without losing inp
   expect((within(ai).getByRole("combobox") as HTMLSelectElement).value).toBe("classify");
 });
 
+test("each human review boundary is explicitly associated with its own artifact", () => {
+  renderWorkspace([draft, { ...draft, id: "draft-2", summary: "Second plan" }]);
+  for (const summary of ["Draft plan", "Second plan"]) {
+    const review = screen.getByRole("group", { name: `Human review: ${summary}` });
+    expect(within(review).getByRole("button", { name: "Approve" })).toBeTruthy();
+    expect(within(review).getByRole("button", { name: "Dismiss" })).toBeTruthy();
+    expect(within(review).getByText(/no authority until you act/)).toBeTruthy();
+    expect(review.closest("[data-slot=card]")?.textContent).toContain(summary);
+  }
+});
+
 test("a new result precedes the composer without discarding its context", async () => {
   const user = userEvent.setup();
   const view = renderWorkspace();

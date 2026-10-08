@@ -44,20 +44,20 @@ export function MissionAiDraftsPanel({ workspace, project, mission, drafts }: Mi
     modeRefs.current[next]?.focus();
   }
 
-  return <div>
-    <header className="pb-7">
+  return <div className="mission-page">
+    <header className="mission-header">
       <nav aria-label="Mission hierarchy" className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] text-text-secondary">
         <Link href={`/w/${workspace.slug}`} className="hover:text-foreground">{workspace.name}</Link><span aria-hidden="true">/</span>
         <Link href={`/w/${workspace.slug}/projects/${project.id}`} className="hover:text-foreground">{project.name}</Link><span aria-hidden="true">/</span>
         <span aria-current="page" className="break-words text-foreground">{mission.title}</span>
       </nav>
-      <div className="mt-6 flex flex-wrap items-end justify-between gap-4">
-        <div className="min-w-0"><p className="eyebrow text-primary">Mission workspace</p><h1 className="mt-2 break-words text-[28px] font-semibold leading-tight tracking-tight">{mission.title}</h1></div>
-        <div className="flex items-center gap-4 pb-1" aria-label="Mission state"><PriorityLabel priority={mission.priority} /><StatusBadge status={mission.status} /></div>
+      <div className="mission-identity">
+        <div className="min-w-0"><p className="eyebrow text-primary">Mission workspace</p><h1 className="collection-heading mt-2">{mission.title}</h1></div>
+        <div className="flex flex-wrap items-center gap-4" aria-label="Mission state"><PriorityLabel priority={mission.priority} /><StatusBadge status={mission.status} /></div>
       </div>
     </header>
 
-    <div role="group" aria-label="Mission working modes" className="mission-modes mb-4 grid grid-cols-3 gap-1 rounded-lg border border-border bg-surface p-1">
+    <div role="group" aria-label="Mission working modes" className="mission-modes grid grid-cols-3">
       {modes.map((workingMode, index) => <button key={workingMode} ref={(node) => { modeRefs.current[index] = node; }} type="button" aria-pressed={mode === workingMode} aria-controls={`mission-${workingMode}`} onClick={() => setMode(workingMode)} onKeyDown={(event) => onModeKeyDown(event, index)} className="mission-mode min-h-11 rounded-md px-2 text-sm font-medium">
         {workingMode === "ai" ? "AI" : workingMode === "context" ? "Context" : "Activity"}
       </button>)}
@@ -65,7 +65,7 @@ export function MissionAiDraftsPanel({ workspace, project, mission, drafts }: Mi
 
     <div className="mission-surface page-entry">
       <section id="mission-context" aria-label="Mission Context" data-active={mode === "context"} className="mission-zone mission-context">
-        <div className="mission-zone-heading"><h2>Mission brief</h2></div>
+        <div className="mission-zone-heading"><h2>Mission brief</h2><span className="zone-label">Context</span></div>
         <p className="mission-brief">{mission.description || "No description provided."}</p>
         <dl className="mission-facts">
           <div><dt>Project</dt><dd><Link href={`/w/${workspace.slug}/projects/${project.id}`}>{project.name}</Link></dd></div>
@@ -87,7 +87,7 @@ export function MissionAiDraftsPanel({ workspace, project, mission, drafts }: Mi
       </section>
 
       <section id="mission-activity" aria-label="Activity and review history" data-active={mode === "activity"} className="mission-zone mission-activity">
-        <div className="mission-zone-heading"><h2>Activity</h2></div>
+        <div className="mission-zone-heading"><h2>Activity</h2><span className="zone-label">History</span></div>
         {drafts.length === 0 ? <div className="border-l border-border-strong pl-4"><p className="text-sm leading-6 text-text-secondary">No draft activity yet.</p><p className="mt-2 text-[13px] leading-6 text-text-secondary">Saved drafts and human decisions appear here.</p></div> : <ol className="space-y-7">
           {drafts.map((draft) => {
             const status = getDraftStatusPresentation(draft.status);
